@@ -1,0 +1,4 @@
+pysqlite3
+pytelegrambotapi
+coinaddr
+pycoingecko
