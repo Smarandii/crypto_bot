@@ -145,21 +145,21 @@ class UserMenu:
 
 class OperatorMenu:
     MENU_BUTTONS = {'show_n_a_requests': 'Показать заявки, требующие обработки',
-                    'r_request': 'Пополнить баланс пользователя',
-                    'd_request': 'Списать с баланса пользователя',
-                    'h_request': 'Отправить сообщение пользователю',
-                    'back': 'Пользовательское меню'
+                    'replenish_user_balance': 'Пополнить баланс пользователя',
+                    'cut_user_balance': 'Списать с баланса пользователя',
+                    'send_message_to_user': 'Отправить сообщение пользователю',
+                    'main_menu': 'Пользовательское меню'
                     }
 
     def get_menu_markup(self):
         markup = types.ReplyKeyboardMarkup()
-        r_request = types.KeyboardButton(self.MENU_BUTTONS['r_request'])
-        n_a_requests = types.KeyboardButton(self.MENU_BUTTONS['n_a_requests'])
-        d_request = types.KeyboardButton(self.MENU_BUTTONS['d_request'])
+        replenish_user = types.KeyboardButton(self.MENU_BUTTONS['replenish_user'])
+        show_n_a_requests = types.KeyboardButton(self.MENU_BUTTONS['show_n_a_requests'])
+        cut_user_balance = types.KeyboardButton(self.MENU_BUTTONS['cut_user_balance'])
         h_request = types.KeyboardButton(self.MENU_BUTTONS['h_request'])
         back_btn = types.KeyboardButton(self.MENU_BUTTONS['back'])
-        markup.row(r_request, n_a_requests)
-        markup.row(d_request, h_request)
+        markup.row(replenish_user, show_n_a_requests)
+        markup.row(cut_user_balance, h_request)
         markup.row(back_btn)
         return markup
 

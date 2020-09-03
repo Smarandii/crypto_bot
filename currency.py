@@ -1,5 +1,6 @@
 from datetime import datetime
 from pycoingecko import CoinGeckoAPI
+import coinaddr
 cg = CoinGeckoAPI()
 
 
@@ -34,6 +35,26 @@ class CurrencyBot:
         self.exmo_currency = 1
         self.last_cur_update = None
         self.last_cur_update = self.update_all_currencies()
+
+    def check_address(self, address):
+        try:
+            address = bytes(address, 'ascii')
+            if coinaddr.validate('btc', address):
+                return True
+        except Exception:
+            try:
+                if coinaddr.validate('ltc', address):
+                    return True
+            except Exception:
+                try:
+                    if coinaddr.validate('bch', address):
+                        return True
+                except Exception:
+                    try:
+                        if coinaddr.validate('eth', address):
+                            return True
+                    except Exception:
+                        return False
 
     def update_all_currencies(self):
 

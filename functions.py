@@ -1,36 +1,5 @@
-import coinaddr
 
-from database import get_requests
-from secrets import PERCENTS, DISCOUNTS, OPERATORS_LIST, ADMINS_LIST, MIN_VALUE_FOR_RETURN, MAX_VALUE_FOR_RETURN, \
-    ADV_PRIORITY_PRICE, MAX_PRIORITY_PRICE
-
-
-def get_prepayment_message(user_curr, trade_value, user_price, key) -> str:
-    messages = {'Bitcoin': f"Курс: {user_curr} руб.\n"
-                                          f"Покупка {trade_value} {key}\n"
-                                          f"К оплате: {user_price} руб.\n"
-                                          f"Следующим сообщением отправьте нам ваш криптокошелёк.\n"
-                                          f"Пример: 3GncF7muEw1oayeuH33rxahdmtHSWoj4tw",
-                'LiteCoin': f"Курс: {user_curr} руб.\n"
-                                          f"Покупка {trade_value} {key}\n"
-                                          f"К оплате: {user_price} руб.\n"
-                                          f"Следующим сообщением отправьте нам ваш криптокошелёк.\n"
-                                          f"Пример: MDwCMAofN9K4U8e9EPMzs57Asams2AFBen",
-                'ExmoRUB': f"Курс: {user_curr} руб.\n"
-                                          f"Покупка {trade_value} {key}\n"
-                                          f"К оплате: {user_price} руб.\n",
-                'Ethereum': f"Курс: {user_curr} руб.\n"
-                                          f"Покупка {trade_value} {key}\n"
-                                          f"К оплате: {user_price} руб.\n"
-                                          f"Следующим сообщением отправьте нам ваш криптокошелёк.\n"
-                                          f"Пример: 0x2Fe62eae2fB629808C94E55AF69fB373FD959980",
-                'Bitcoin Cash': f"Курс: {user_curr} руб.\n"
-                                          f"Покупка {trade_value} {key}\n"
-                                          f"К оплате: {user_price} руб.\n"
-                                          f"Следующим сообщением отправьте нам ваш криптокошелёк.\n"
-                                          f"Пример: 3GncF7muEw1oayeuH33rxahdmtHSWoj4tw",
-                }
-    return messages[key]
+from content import BotContent
 
 
 def get_price_from_request(request):
@@ -46,41 +15,6 @@ def change_request_comment_price(request, amount: float):
     if amount == MAX_PRIORITY_PRICE:
         request[5] = request[5].split(': ')[0] + f': {price} Комиссия максимальная'
     return request[5]
-
-
-def check_address(address):
-    try:
-        address = bytes(address, 'ascii')
-        if coinaddr.validate('btc', address):
-            return True
-    except Exception:
-        try:
-            if coinaddr.validate('ltc', address):
-                return True
-        except Exception:
-            try:
-                if coinaddr.validate('bch', address):
-                    return True
-            except Exception:
-                try:
-                    if coinaddr.validate('eth', address):
-                        return True
-                except Exception:
-                    return False
-
-
-def parse_msg(msg):
-    words = msg.text.split(" ")
-    client_id = words.pop(0)
-    message = get_message(words)
-    return client_id, message
-
-
-def get_message(words):
-    m = ''
-    for w in words:
-        m += w + " "
-    return m
 
 
 def get_type(rq_type):
@@ -211,48 +145,6 @@ def show_request(request):
     return text
 
 
-def get_balance_available_for_return(user):
-    return user[2] - user[2] * 0.1
-
-
-def get_status_discount(user):
-    return DISCOUNTS[user[3]]
-
-
-def get_user_price(curr, user, trade_value, key):
-    user_price = float(curr) * float(trade_value)
-    discount = get_status_discount(user)
-    promotion = None
-    if (user[6] + 1) % 10 == 0 and 1 < user_price < 3000:
-        promotion = True
-        percent = 1
-    elif user[3] is True:  # if user is follower
-        if 1 <= user_price <= 5000:
-            percent = PERCENTS['under_5k_f'][key]
-        elif 5000 < user_price < 10000:
-            percent = PERCENTS['from_5k_to_10k_f'][key]
-        elif 10000 <= user_price:
-            percent = PERCENTS['above_10k_f'][key]
-        else:
-            return 'price is too low'
-    else:  # if user is not follower
-        if 1 <= user_price <= 2000:
-            percent = PERCENTS['under_2k'][key]
-        elif 2000 < user_price < 5000:
-            percent = PERCENTS['from_2k_to_5k'][key]
-        elif 5000 <= user_price < 10000:
-            percent = PERCENTS['from_5k_to_10k'][key]
-        elif 10000 <= user_price:
-            percent = PERCENTS['above_10k'][key]
-        else:
-            return 'price is too low'
-    user_curr = float(curr) + float(curr) * percent
-    user_price = (user_curr) * float(trade_value)
-    if key == "EXMOCoin":
-        user_price -= 5
-    return round(user_price, 2) - user_price * discount, user_curr, promotion
-
-
 def get_trade_information(request) -> str:
     trade_information = request[5].split(', ')[0]
     trade_information += '\n' + request[5].split(',')[1]
@@ -262,42 +154,6 @@ def get_trade_information(request) -> str:
 def get_fee(request):
     fee = request[5].split(": ")[1]
     return round(float(fee) * 0.003, 2)
-
-
-def get_value(trade_value):
-    if not trade_value.isalpha():
-        if ',' in trade_value:
-            return float(trade_value.replace(",", "."))
-        else:
-            return float(trade_value)
-    return 0
-
-
-def trade_value_is_acceptable(trade_value, key):
-    if key == "ExmoRUB":
-        return 5 < trade_value <= 100000
-    if key == 'Bitcoin':
-        return 0 < trade_value <= 0.02
-    if key == 'Ethereum':
-        return 0 < trade_value <= 0.02
-    if key == 'Bitcoin Cash':
-        return 0 < trade_value <= 0.02
-    if key == 'Ethereum':
-        return 0 < trade_value <= 0.02
-
-
-def all_requests_is_none(c, user_id):
-    trade_request, help_request, replenish_request, service_request, return_request = get_requests(c, user_id)
-    return trade_request is None and replenish_request is None and help_request is None and service_request is \
-           None and return_request is None
-
-
-def return_value_is_acceptable(return_value) -> bool:
-    return MIN_VALUE_FOR_RETURN <= return_value <= MAX_VALUE_FOR_RETURN
-
-
-def replenish_value_is_acceptable(replenish_value):
-    return 0 < replenish_value
 
 
 def get_operators_list() -> list:

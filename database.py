@@ -3,8 +3,7 @@ import sqlite3
 from sqlite3 import Error
 
 from models import User, Request
-from content import TO_ACHIEVE_MEDIUM_STATUS, TO_ACHIEVE_ADVANCED_STATUS, MEDIUM_STATUS, ADVANCED_STATUS, MESSAGES
-
+from content import BotContent
 
 def get_request_from_db(request: tuple) -> Request:
     request = Request(db_id=request[0],
@@ -74,7 +73,7 @@ class DataBase:
 
     def get_request_by_telegram_id(self, telegram_id: int, rq_type='trade', status='any') -> Request or None:
         telegram_id = int(telegram_id)
-        requests = self.select_all_requests()
+        requests = self.get_all_requests()
         if status == 'any':
             for request in requests:
                 if request.telegram_id == telegram_id \
@@ -88,7 +87,7 @@ class DataBase:
                     return request
         return None
 
-    def select_all_requests(self) -> list:
+    def get_all_requests(self) -> list:
         requests_from_db = self.select_column_from_db('*', 'requests')
         requests = []
         for request in requests_from_db:
@@ -97,7 +96,7 @@ class DataBase:
 
     def get_request_by_id(self, rq_id: int):
         rq_id = int(rq_id)
-        requests = self.select_all_requests()
+        requests = self.get_all_requests()
         for request in requests:
             if request.db_id == rq_id:
                 return request
@@ -152,10 +151,11 @@ class DataBase:
         self.c.commit()
         print(self.get_user_by_telegram_id(user.telegram_id), 'usr updated')
 
-    def update_request_in_db(self, request):
+    def update_request_in_db(self, request: Request):
         with self.c:
             self.cursor.execute(f'UPDATE requests SET id = ?, telegram_id = ?, status = ?, type = ?, '
-                                f'when_created = ?, comment = ?, wallet = ? WHERE id = {request.db_id}', request)
+                                f'when_created = ?, comment = ?, wallet = ? '
+                                f'WHERE id = {request.db_id}', request.update_database_list())
             self.c.commit()
         print(self.get_request_by_id(request.db_id), 'rq updated')
 
@@ -173,7 +173,7 @@ class DataBase:
             self.c.commit()
 
     def print_all_requests(self):
-        requests = self.select_all_requests()
+        requests = self.get_all_requests()
         for request in requests:
             print(request)
 
@@ -204,7 +204,7 @@ class DataBase:
             print('user not found')
 
     def check_requests_shell_life(self):
-        requests = self.select_all_requests()
+        requests = self.get_all_requests()
         for request in requests:
             if request_time_is_done(request.when_created) and request.type != 'help_request' \
                     and request.status != 'user_confirmed' \
@@ -244,7 +244,7 @@ class DataBase:
         return users
 
     def get_all_unprocessed_requests_in_list(self) -> list:
-        requests = self.select_all_requests()
+        requests = self.get_all_requests()
         unprocessed_requests = []
         for request in requests:
             if request.status == "user_confirmed" or request.status == 'user_payed':

@@ -1,6 +1,6 @@
 from telebot import TeleBot
 from buttons import *
-from content import MESSAGES, TOKEN, EXAMPLE
+from content import BotContent, TOKEN
 from currency import *
 from models import *
 from database import *
@@ -9,9 +9,12 @@ from datetime import datetime
 
 
 class Bot:
-    def __init__(self, telebot, msg=None, curr_bot=None):
+    def __init__(self, telebot, msg=None, curr_bot=None, call=None):
         self.tgbot = telebot
-        self.user = self.add_new_user(msg)
+        if msg is not None:
+            self.user = self.add_new_user(msg)
+        else:
+            self.user = self.add_new_user(call=call)
         self.user.pull_requests(self.database.get_requests(self.user))
         self.user_menu = UserMenu()
         self.operator_menu = OperatorMenu()
@@ -19,13 +22,26 @@ class Bot:
         self.crypto_menu = CryptoMenu()
         self.personal_menu = PersonalMenu()
         self.currency_bot = curr_bot
-        self.parser = MessageParser()
+        self.message_parser = MessageParser(msg)
+        self.call_parser = CallParser(call)
+        self.content = BotContent()
         self.database = None
+        self.operators = get_operators_list()
+
+    def return_is_possible(self, return_value):
+        return float(self.user.balance) > return_value and self.return_value_is_acceptable(return_value)
+
+    def get_balance_available_for_return(self):
+        return self.user.balance * self.content.RETURN_PERCENT
+
+    def return_value_is_acceptable(self, return_value) -> bool:
+        return self.content.MIN_VALUE_FOR_RETURN <= return_value <= self.content.MAX_VALUE_FOR_RETURN
 
     def get_last_cur_update(self):
         return self.currency_bot.last_cur_update
 
     def send_request_to_operators(self, text, request):
+        # TODO
         rq_id = request[0]
         if 'help_request' not in request[3]:
             operator_buttons = keyboard_maker(2, ['Пользователь оплатил', 'Пользователь не оплатил'],
@@ -34,7 +50,7 @@ class Bot:
         else:
             operator_buttons = keyboard_maker(2, ['Ответить на вопрос', 'Удалить вопрос'],
                                               [f'answer {rq_id}', f'cancel_question {rq_id}'])
-        for operator in get_operators_list():
+        for operator in self.operators:
             self.tgbot.send_message(operator, text=text,
                                     reply_markup=operator_buttons)
 
@@ -65,76 +81,90 @@ class Bot:
                    'None')  # wallet
         self.database.add_request_to_db(request)
 
-    def add_new_user(self, user_message):
-        user_id = user_message.chat.id
-        follow_status = self.check_user_is_follower(user_id)
-        invited_by = self.parser.get_invitation(user_message)
-        user = self.database.add_new_user_to_db(user_id, follow_status, invited_by)
-        return user
+    def add_new_service_request(self, status):
+        request = (self.user.telegram_id,
+                   status,  # status
+                   'service_request',   # type
+                   str(datetime.now()),  # when created
+                   'None',  # comment
+                   'None')  # wallet
+        self.database.add_request_to_db(request)
 
-    def add_new_admin(self, user_message):
-        if " " in user_message.text and self.user.is_admin:
-            admin_id = self.parser.get_command_value(user_message)
+    def add_new_user(self, user_message=None, call=None):
+        if call is None:
+            user_id = user_message.chat.id
+            follow_status = self.check_user_is_follower(user_id)
+            invited_by = self.message_parser.get_invitation(user_message)
+            user = self.database.add_new_user_to_db(user_id, follow_status, invited_by)
+            return user
+        else:
+            user_id = call.from_user.telegram_id
+            return self.database.get_user_by_telegram_id(user_id)
+
+    def add_new_admin(self,):
+        if " " in self.message_parser.user_message.text and self.user.is_admin:
+            admin_id = self.message_parser.get_command_value()
             add_admin(admin_id)
-            self.tgbot.send_message(user_message.chat.id,
-                                    text=MESSAGES['new_admin'])
+            self.tgbot.send_message(self.user.telegram_id,
+                                    text=self.content.MESSAGES['new_admin'])
 
-    def add_new_operator(self, user_message):
-        if " " in user_message.text and self.user.is_admin:
-            command, operator_id = self.parser.get_command_value(user_message)
+    def add_new_operator(self):
+        if " " in self.message_parser.user_message.text and self.user.is_admin:
+            command, operator_id = self.message_parser.get_command_value()
             add_operator(operator_id)
             self.tgbot.send_message(self.user.telegram_id,
-                                    text=MESSAGES['new_operator'])
+                                    text=self.content.MESSAGES['new_operator'])
 
-    def delete_operator(self, user_message):
-        if " " in user_message.text and self.user.is_admin:
-            command, operator_id = self.parser.get_command_value(user_message)
+    def delete_operator(self):
+        if " " in self.message_parser.user_message.text and self.user.is_admin:
+            command, operator_id = self.message_parser.get_command_value()
             delete_operator(operator_id)
             self.tgbot.send_message(self.user.telegram_id,
-                                    text=MESSAGES['delete_operator'])
+                                    text=self.content.MESSAGES['delete_operator'])
 
-    def delete_admin(self, user_message):
-        if " " in user_message.text and self.user.is_admin:
-            command, admin_id = self.parser.get_command_value(user_message)
+    def delete_admin(self):
+        if " " in self.message_parser.user_message.text and self.user.is_admin:
+            command, admin_id = self.message_parser.get_command_value()
             delete_admin(admin_id)
             self.tgbot.send_message(self.user.telegram_id,
-                                    text=MESSAGES['delete_admin'])
+                                    text=self.content.MESSAGES['delete_admin'])
 
     def send_main_menu(self):
         markup = self.user_menu.get_menu_markup()
         self.tgbot.send_message(self.user.telegram_id,
-                                text=MESSAGES['menu_arrow'],
+                                text=self.content.MESSAGES['menu_arrow'],
                                 reply_markup=markup)
 
     def send_o_menu(self):
         if self.user.is_operator:
             markup = self.operator_menu.get_menu_markup()
-            self.tgbot.send_message(self.user.telegram_id, MESSAGES['menu_arrow'], reply_markup=markup)
+            self.tgbot.send_message(self.user.telegram_id, self.content.MESSAGES['menu_arrow'], reply_markup=markup)
 
     def send_a_menu(self):
         if self.user.is_admin:
             markup = self.admin_menu.get_menu_markup()
-            self.tgbot.send_message(self.user.telegram_id, MESSAGES['menu_arrow'], reply_markup=markup)
+            self.tgbot.send_message(self.user.telegram_id, self.content.MESSAGES['menu_arrow'], reply_markup=markup)
 
     def send_start(self):
         if self.user.is_follower:
             markup = self.user_menu.get_menu_markup()
-            self.tgbot.send_message(self.user.telegram_id, MESSAGES['menu_arrow'], reply_markup=markup)
+            self.tgbot.send_message(self.user.telegram_id, self.content.MESSAGES['menu_arrow'], reply_markup=markup)
         else:
             markup = self.user_menu.suggestion_menu()
-            self.tgbot.send_message(self.user.telegram_id, text=MESSAGES['channel_suggest'], reply_markup=markup)
+            self.tgbot.send_message(self.user.telegram_id, text=self.content.MESSAGES['channel_suggest'], reply_markup=markup)
             markup = self.user_menu.get_menu_markup()
-            self.tgbot.send_message(self.user.telegram_id, MESSAGES['menu_arrow'], reply_markup=markup)
+            self.tgbot.send_message(self.user.telegram_id, self.content.MESSAGES['menu_arrow'], reply_markup=markup)
 
     def send_buy_crypto(self):
         markup = self.crypto_menu.get_menu_markup()
-        self.tgbot.send_message(self.user.telegram_id, text=MESSAGES['choose_crypto'], reply_markup=markup)
+        self.tgbot.send_message(self.user.telegram_id, text=self.content.MESSAGES['choose_crypto'], reply_markup=markup)
 
     def send_partnership(self):
         text = self.database.get_partnership_text(self.user)
         self.tgbot.send_message(self.user.telegram_id, text=text)
 
     def send_help(self):
+        # TODO
         request = self.database.get_request_by_telegram_id(self.user.telegram_id, rq_type='help_request')
         if request is not None:
             self.tgbot.send_message(chat_id=self.user.telegram_id,
@@ -146,30 +176,266 @@ class Bot:
                                     text="Задайте ваш вопрос прямо в чат с ботом, мы ответим как-только сможем!", )
 
     def send_personal_cabinet(self):
-        self.tgbot.send_message(self.user.telegram_id, text=MESSAGES['personal_cabinet'], reply_markup=self.personal_menu.get_menu_markup())
+        self.tgbot.send_message(self.user.telegram_id, text=self.content.MESSAGES['personal_cabinet'], reply_markup=self.personal_menu.get_menu_markup())
 
     def send_replenish_balance(self):
         self.tgbot.send_message(self.user.telegram_id,
-                                text=MESSAGES['replenish_balance'].format(self.user.balance),
+                                text=self.content.MESSAGES['replenish_balance'].format(self.user.balance),
                                 reply_markup=REPLENISH_BALANCE)
 
     def send_current_balance(self):
         self.tgbot.send_message(self.user.telegram_id,
-                                text=MESSAGES['current_balance'].format(self.user.status, self.user.balance),
+                                text=self.content.MESSAGES['current_balance'].format(self.user.status, self.user.balance),
                                 reply_markup=RETURN_MONEY)
 
     def send_start_trade_rq(self, key):
         curr_price = self.currency_bot.get_curr_by_key(key)
         if self.user.trade_request is not None and self.user.trade_request.status != 'user_confirmed':
             self.tgbot.send_message(chat_id=self.user.telegram_id,
-                                    text=MESSAGES['request_exist_warning'],
+                                    text=self.content.MESSAGES['request_exist_warning'],
                                     reply_markup=SHOW_OR_CANCEL_TRADE_ORDER)
         else:
             # TODO ввод в рублях или в выбранной валюте
             self.tgbot.send_message(chat_id=self.user.telegram_id,
-                                    text=MESSAGES['start_trade_rq'].format(EXAMPLE[key], key),
+                                    text=self.content.MESSAGES['start_trade_rq'].format(self.content.EXAMPLE[key], key),
                                     reply_markup=CANCEL_ORDER)
             self.add_new_trade_request(key, curr_price)
+
+    def send_raw_requests(self):
+        requests = self.database.get_all_requests()
+        self.show_all_requests_to_operators(requests)
+        if not requests:
+            tgbot.send_message(self.user.telegram_id,
+                               text='Заявки не найдены.')
+
+    def send_replenish_user_balance(self):
+        self.add_new_service_request('S: wait_for_user_replenish')
+        tgbot.send_message(self.user.telegram_id, text=self.content.MESSAGES['user_balance_replenish'])
+
+    def send_unreplenish_user_balance(self):
+        self.add_new_service_request('S: wait_for_user_unreplenish')
+        tgbot.send_message(self.user.telegram_id, text=self.content.MESSAGES['user_balance_replenish'])
+
+    def send_message_to_user(self):
+        self.add_new_service_request('S: wait_for_msg')
+        tgbot.send_message(self.user.telegram_id, text=self.content.MESSAGES['user_balance_replenish'])
+
+    def send_addoper(self):
+        self.tgbot.send_message(self.user.telegram_id, text="Используй команду /addoper")
+
+    def send_addadmin(self):
+        tgbot.send_message(self.user.telegram_id, text="Используй команду /addadmin")
+
+    def send_deloper(self):
+        self.tgbot.send_message(self.user.telegram_id, text="Используй команду /deloper")
+
+    def send_deladmin(self):
+        self.tgbot.send_message(self.user.telegram_id, text="Используй команду /deladmin")
+
+    def send_return_impossible_message(self):
+        self.tgbot.send_message(
+            text=self.content.MESSAGES['return_failure'].format(self.get_balance_available_for_return(),
+                                                                self.content.MIN_VALUE_FOR_RETURN,
+                                                                self.content.MAX_VALUE_FOR_RETURN),
+            chat_id=self.user.telegram_id)
+        self.database.delete_request_from_db(self.user.return_request.db_id)
+
+    def send_return_possible_message(self, return_value):
+        self.user.return_request.comment = f"Вывод {return_value}"
+        self.database.update_request_in_db(self.user.return_request)
+        choose_return_keyboard = keyboard_maker(2, ['Сбербанк', 'QIWI'],
+                                                [f'return_sber {self.user.return_request.db_id}',
+                                                 f'return_qiwi {self.user.return_request.db_id}'])
+        self.tgbot.send_message(self.user.telegram_id, text=self.content.MESSAGES['where_return'],
+                                reply_markup=choose_return_keyboard)
+
+    def confirm_return_requisites(self):
+        user_requisites = self.message_parser.user_message
+        self.user.return_request.wallet = user_requisites
+        self.database.update_request_in_db(self.user.return_request)
+        tgbot.send_message(self.user.telegram_id,
+                           text=self.content.MESSAGES['confirm_requisites'].format(user_requisites),
+                           reply_markup=REQUISITES_CONFIRM_KEYBOARD)
+
+    def return_request_processing(self):
+        if self.user.return_request.type == "R: wait for return value":
+            return_value = self.message_parser.get_value_from_message()
+            if self.return_is_possible(return_value):
+                self.send_return_possible_message(return_value)
+            else:
+                self.send_return_impossible_message()
+        if self.user.return_request == "R: wait for return requisites":
+            self.confirm_return_requisites()
+        self.database.update_request_in_db(self.user.return_request)
+
+    def send_confirm_answer_message(self):
+        answer = self.message_parser.user_message
+        send_msg_to_user = keyboard_maker(2,
+                                          ['Да',
+                                           'Нет, ввести заново'],
+                                          [f'sendanswer {self.user.service_request.telegram_id} {answer}',
+                                           f'answer']
+                                          )
+        self.tgbot.send_message(self.user.telegram_id,
+                                text=self.content.MESSAGES['confirm_send_answer'].format(answer),
+                                reply_markup=send_msg_to_user)
+
+    def send_confirm_direct_message(self):
+        client_id, message = self.message_parser.get_receiver_id_and_message()
+        send_msg_to_user = one_button_keyboard("Подтвердить", f'send_msg:{client_id}:{message}')
+        self.tgbot.send_message(self.user.telegram_id,
+                                self.content.MESSAGES['confirm_send_message'],
+                                reply_markup=send_msg_to_user)
+
+    def send_confirm_user_balance_replenish(self):
+        client_id, amount = self.message_parser.user_message.text.split(" ")
+        replenish_user_balance = one_button_keyboard("Подтвердить",
+                                                     f'replenish_user_balance {client_id} {amount}')
+        self.tgbot.send_message(self.user.telegram_id,
+                                self.content.MESSAGES['confirm_user_balance_replenish'].format(client_id, amount),
+                                reply_markup=replenish_user_balance)
+
+    def send_confirm_user_balance_unreplenish(self):
+        client_id, amount = self.message_parser.user_message.text.split(" ")
+        unreplenish_user_balance = one_button_keyboard("Подтвердить",
+                                                       f'unreplenish_user_balance {client_id} {amount}')
+        self.tgbot.send_message(self.user.telegram_id,
+                                self.content.MESSAGES['confirm_user_balance_unreplenish'].format(client_id, amount),
+                                reply_markup=unreplenish_user_balance)
+
+    def service_request_processing(self):
+        if self.user.service_request.status == "S: wait_for_answer":
+            self.send_confirm_answer_message()
+        if self.user.service_request.status == "S: wait_for_msg":
+            self.send_confirm_direct_message()
+        if self.user.service_request.status == "S: wait_for_user_replenish":
+            self.send_confirm_user_balance_replenish()
+        if self.user.service_request.status == "S: wait_for_user_unreplenish":
+            self.send_confirm_user_balance_unreplenish()
+        self.database.update_request_in_db(self.user.service_request)
+
+    def send_confirm_user_question(self):
+        question = self.message_parser.user_message
+        self.user.help_request.status = 'H: user_wait_for_response'
+        self.user.help_request.comment = question
+        self.tgbot.send_message(self.user.telegram_id,
+                                text=self.content.MESSAGES['confirm_user_question'],
+                                reply_markup=CANCEL_HELP_RQ)
+
+    def help_request_processing(self):
+        if self.user.help_request.status == 'H: wait_for_question':
+            self.send_confirm_user_question()
+        self.database.update_request_in_db(self.user.help_request)
+
+    def send_confirm_user_replenish(self):
+        replenish_value = self.message_parser.get_value_from_message()
+        if self.message_parser.replenish_value_is_acceptable():
+            self.user.replenish_request.type = f'replenish {replenish_value}'
+            self.user.replenish_request.comment = f"Пополнение баланса на сумму: {replenish_value} ₽"
+            self.tgbot.send_message(self.user.telegram_id,
+                                    text=self.content.MESSAGES['confirm_user_replenish'].format('replenish_value'),
+                                    reply_markup=REPLENISH_CONFIRM_KEYBOARD)
+
+        else:
+            self.send_unacceptable_value_message()
+
+    def send_replenish_methods(self):
+        self.tgbot.send_message(self.user.telegram_id,
+                                text=self.content.MESSAGES['choose_payment_method'],
+                                reply_markup=REPLENISH_METHODS)
+
+    def replenish_request_processing(self):
+        if self.user.replenish_request.status == "B: wait for replenish value":
+            self.send_confirm_user_replenish()
+        elif self.user.replenish_request.status == "B: waiting_for_purchase":
+            self.send_replenish_methods()
+        self.database.update_request_in_db(self.user.replenish_request)
+
+    def send_promotion(self):
+        self.tgbot.send_message(self.user,
+                                self.content.MESSAGES['promotion_message'].format(self.user.quantity_of_trades + 1))
+
+    def send_trade_request_prepayment_message(self, key, curr_price):
+        trade_value = self.message_parser.get_value_from_message()
+        user_price, user_curr, promotion = self.content.get_user_price(curr_price, self.user, trade_value, key)
+        if promotion is not None:
+            self.send_promotion()
+        message = self.content.get_prepayment_message(user_curr, trade_value, user_price, key)
+        tgbot.send_message(self.user.telegram_id, text=message, reply_markup=CANCEL_ORDER)
+        self.user.trade_request.status = 'T: waiting_for_usr_wallet'
+        self.user.trade_request.comment = f"Покупка {trade_value} {key}, К оплате: {user_price}"
+        self.user.trade_request.type = f'trade {trade_value} {key} {user_curr}'
+
+    def send_unacceptable_value_message(self):
+        self.tgbot.send_message(self.user.telegram_id, text=self.content.MESSAGES['unacceptable_value'])
+
+    def send_trade_wallet_confirm(self, user_wallet):
+        self.tgbot.send_message(self.user.telegram_id,
+                                self.content.MESSAGES['confirm_user_wallet'].format(user_wallet),
+                                reply_markup=WALLET_CONFIRM_KEYBOARD)
+        self.user.trade_request.wallet = user_wallet
+
+    def send_unacceptable_wallet_message(self):
+        self.tgbot.send_message(self.user.telegram_id,
+                                self.content.MESSAGES['unacceptable_wallet'])
+
+    def send_choose_commission_message(self):
+        self.tgbot.send_message(self.user.telegram_id,
+                                self.content.MESSAGES['choose_commission'],
+                                reply_markup=REQUEST_PRIORITIES)
+
+    def send_payment_methods(self):
+        self.tgbot.send_message(self.user.telegram_id,
+                                self.content.MESSAGES['choose_payment_method'],
+                                reply_markup=PAYMENT_METHODS)
+
+    def trade_request_processing(self):
+        if self.user.trade_request.status == "T: wait for trade value":
+            key, curr_price = self.user.trade_request.get_key_and_curr_price_from_rq()
+            if self.message_parser.trade_value_is_acceptable(key):
+                self.send_trade_request_prepayment_message(key, curr_price)
+            else:
+                self.send_unacceptable_value_message()
+        elif self.user.trade_request.status == "T: waiting_for_usr_wallet":
+            user_wallet = self.message_parser.user_message
+            if self.currency_bot.check_adress(user_wallet):
+                self.send_trade_wallet_confirm(user_wallet)
+            else:
+                self.send_unacceptable_wallet_message()
+        elif self.user.trade_request.status == "T: waiting_for_priority":
+            self.send_choose_commission_message()
+        elif self.user.trade_request.status == "T: waiting_for_purchase":
+            self.send_payment_methods()
+        self.database.update_request_in_db(self.user.trade_request)
+
+    def send_message_from_operator(self):
+        call_data, client_id, message = self.call_parser.call.data.split(':')
+        self.tgbot.send_message(client_id,
+                                self.content.MESSAGES['message_from_operator_notification'].format(message))
+        self.tgbot.send_message(self.user.telegram_id,
+                                self.content.MESSAGES['message_sent_notification'])
+        self.database.delete_request_from_db(self.user.service_request.db_id)
+
+    def send_status_from_operator(self):
+        client_id, message = self.database.get_status_message(self.call_parser.call)
+        self.tgbot.send_message(self.user.telegram_id,
+                                self.content.MESSAGES['message_sent_notification'])
+        self.tgbot.send_message(client_id, text=message)
+
+    def send_answer_from_operator(self):
+        call_data, client_id, answer = self.call_parser.call.data.split(' ')
+        client_request = self.database.get_request_by_telegram_id(client_id, rq_type='help_request')
+        self.tgbot.send_message(client_id,
+                                self.content.MESSAGES['question_answered_notification'].format(answer))
+        self.tgbot.send_message(self.user.telegram_id,
+                                self.content.MESSAGES['message_sent_notification'])
+        self.database.delete_request_from_db(client_request.db_id)
+        self.database.delete_request_from_db(self.user.service_request.db_id)
+
+    def send_wait_for_operator_answer(self):
+        self.add_new_service_request('S: wait_for_answer')
+        self.tgbot.send_message(self.user.telegram_id,
+                                self.content.MESSAGES['wait_for_operator_answer'])
 
 
 tgbot = TeleBot(TOKEN)
@@ -203,25 +469,25 @@ def send_admin_menu(msg):
 @tgbot.message_handler(commands=['addadmin'])
 def add_new_admin(msg):
     bot = Bot(tgbot, msg, currency_bot)
-    bot.add_new_admin(msg)
+    bot.add_new_admin()
 
 
 @tgbot.message_handler(commands=['addoper'])
 def add_new_operator(msg):
     bot = Bot(tgbot, msg, currency_bot)
-    bot.add_new_operator(msg)
+    bot.add_new_operator()
 
 
 @tgbot.message_handler(commands=['deloper'])
 def delete_operator(msg):
     bot = Bot(tgbot, msg, currency_bot)
-    bot.delete_operator(msg)
+    bot.delete_operator()
 
 
 @tgbot.message_handler(commands=['deladmin'])
 def delete_admin(msg):
     bot = Bot(tgbot, msg, currency_bot)
-    bot.delete_admin(msg)
+    bot.delete_admin()
 
 
 @tgbot.message_handler(commands=['start'])
@@ -233,7 +499,7 @@ def start_menu(msg):
 
 @tgbot.message_handler(content_types=['text'])
 def msg_analyzer(msg):
-    bot = Bot(tgbot, msg, currency_bot)
+    bot = Bot(tgbot, msg=msg, curr_bot=currency_bot)
     bot.database = DataBase()
 
     print(bot.user.trade_request, 'found trade')
@@ -298,248 +564,75 @@ def msg_analyzer(msg):
     elif bot.operator_menu.sent_by_menu(msg.text) and bot.user.is_admin or bot.user.is_operator:
         # Operator menu
         if bot.operator_menu.MENU_BUTTONS['show_n_a_requests'] in msg.text:
-            requests = get_all_requests_in_list()
-            bot.show_all_requests_to_operators(requests)
-            if not requests:
-                tgbot.send_message(user_id,
-                                   text='Заявки не найдены.')
-            return True
+            bot.send_raw_requests()
 
-        elif 'Пополнить баланс пользователя' in msg.text:
-            add_request_to_db(c, [user_id, 'S: wait_for_user_replenish',
-                                  f'service_request', str(datetime.now()), 'None', 'None'])
-            tgbot.send_message(user_id, text="Отправьте персональный идентификатор "
-                                           "пользователя и сумму пополнения следующим сообщением!\n"
-                                           "Вот так:\n"
-                                           "id amount")
-            return True
+        elif bot.operator_menu.MENU_BUTTONS['replenish_user'] in msg.text:
+            bot.send_replenish_user_balance()
 
-        elif 'Списать с баланса пользователя' in msg.text:
-            add_request_to_db(c, [user_id, 'S: wait_for_user_unreplenish',
-                                  f'service_request', str(datetime.now()), 'None', 'None'])
-            tgbot.send_message(user_id, text="Отправьте персональный идентификатор "
-                                           "пользователя и сумму снятия следующим сообщением!\n"
-                                           "Вот так:\n"
-                                           "id amount")
-            return True
+        elif bot.operator_menu.MENU_BUTTONS['cut_user_balance'] in msg.text:
+            bot.send_unreplenish_user_balance()
 
-        elif 'Отправить сообщение пользователю' in msg.text:
-            add_request_to_db(c, [user_id, 'S: wait_for_msg',
-                                  f'service_request', str(datetime.now()), 'None', 'None'])
-            tgbot.send_message(user_id, text="Отправьте персональный идентификатор "
-                                           "пользователя и ваше сообщение следующим сообщением!\n"
-                                           "Вот так:\n"
-                                           "id message")
-            return True
+        elif bot.operator_menu.MENU_BUTTONS['send_message_to_user'] in msg.text:
+            bot.send_message_to_user()
 
-        elif 'Пользовательское меню' in msg.text:
-            markup = u_menu.get_menu_markup()
-            tgbot.send_message(user_id, text="⬇️ Меню", reply_markup=markup)
-            return True
+        elif bot.operator_menu.MENU_BUTTONS['main_menu'] in msg.text:
+            bot.send_main_menu()
 
-    elif a_menu.sent_by_menu(msg.text) and user_id in ADMINS:
-        if 'Добавить оператора' in msg.text:
-            tgbot.send_message(user_id, text="Используй команду /addoper")
-        if 'Добавить админа' in msg.text:
-            tgbot.send_message(user_id, text="Используй команду /addadmin")
-        if 'Удалить оператора' in msg.text:
-            tgbot.send_message(user_id, text="Используй команду /deloper")
-        if 'Удалить админа' in msg.text:
-            tgbot.send_message(user_id, text="Используй команду /deladmin")
+    elif bot.admin_menu.sent_by_menu(msg.text) and bot.user.is_admin:
+        if bot.admin_menu.MENU_BUTTONS['addoper'] in msg.text:
+            bot.send_addoper()
+        elif bot.admin_menu.MENU_BUTTONS['addadmin'] in msg.text:
+            bot.send_addadmin()
+        elif bot.admin_menu.MENU_BUTTONS['deloper'] in msg.text:
+            bot.send_deloper()
+        elif bot.admin_menu.MENU_BUTTONS['deladmin'] in msg.text:
+            bot.send_deladmin()
+        return True
 
     else:
-        if all_requests_is_none(c, user_id):
-            markup = u_menu.get_menu_markup()
-            tgbot.send_message(user_id, "⬇️Меню", reply_markup=markup)
-        if return_request is not None:
-            request = return_request
-            if return_request[2] == "R: wait for return value":
-                return_value = get_value(msg.text)
-
-                if float(user[2]) > return_value and return_value_is_acceptable(return_value):
-                    request[5] = f"Вывод {return_value}"
-                    update_request_in_db(c, request)
-                    choose_return_keyboard = keyboard_maker(2, ['Сбербанк', 'QIWI'],
-                                                            [f'return_sber {return_request[0]}',
-                                                             f'return_qiwi {return_request[0]}'])
-                    tgbot.send_message(user_id, text='Выберите куда возвращать деньги',
-                                       reply_markup=choose_return_keyboard)
-                else:
-                    tgbot.send_message(
-                        text=f'Не удалось отправить заявку.\nНа вашем счёте недостаточно средств.\n'
-                             f'Доступно для вывода: {get_balance_available_for_return(user)} руб.\n'
-                             f'Минимальная сумма вывода: {MIN_VALUE_FOR_RETURN}\n'
-                             f'Максимальная сумма вывода {MAX_VALUE_FOR_RETURN}\n',
-                        chat_id=user_id)
-                    delete_request_from_db(c, request_id=request[0])
-            if return_request[2] == "R: wait for return requisites":
-                user_requisites = msg.text
-                request[6] = user_requisites
-                if request is not None:
-                    update_request_in_db(c, request)
-                tgbot.send_message(user_id,
-                                   text=f'Деньги с баланса будут отправлены сюда:\n'
-                                      f'{user_requisites}',
-                                   reply_markup=REQUISITES_CONFIRM_KEYBOARD)
+        if bot.user.all_requests_is_none():
+            bot.send_main_menu()
             return True
-        if service_request is not None:
-            # service operations
-            request = service_request
-            if request[2] == "S: wait_for_answer":
-                answer = msg.text
-                send_msg_to_user = keyboard_maker(2, ['Да',
-                                                      'Нет, ввести заново'],
-                                                  [f'sendanswer {request[1]} {answer}',
-                                                   f'answer']
-                                                  )
-                tgbot.send_message(user_id, 'Вы уверены, что хотите отправить этот ответ пользователю?\n'
-                                          f'{answer}', reply_markup=send_msg_to_user)
-            if request[2] == "S: wait_for_msg":
-                client_id, message = parse_msg(msg)
-                send_msg_to_user = one_button_keyboard("Подтвердить",
-                                                       f'send_msg:{client_id}:{message}')
-                tgbot.send_message(user_id, 'Вы уверены, что хотите отправить это сообщение пользователю?',
-                                   reply_markup=send_msg_to_user)
-            if request[2] == "S: wait_for_user_replenish":
-                client_id, amount = msg.text.split(" ")
-                replenish_user_balance = one_button_keyboard("Подтвердить",
-                                                             f'replenish_user_balance {client_id} {amount}')
-                tgbot.send_message(user_id, 'Вы уверены, что хотите пополнить баланс этого пользователя?\n'
-                                          f'{client_id} на сумму {amount}?', reply_markup=replenish_user_balance)
-            if request[2] == "S: wait_for_user_unreplenish":
-                client_id, amount = msg.text.split(" ")
-                unreplenish_user_balance = one_button_keyboard("Подтвердить",
-                                                               f'unreplenish_user_balance {client_id} {amount}')
-                tgbot.send_message(user_id, 'Вы уверены, что хотите списать с баланса этого пользователя '
-                                          f'{client_id} сумму {amount}?', reply_markup=unreplenish_user_balance)
-
-            if request is not None:
-                update_request_in_db(c, request)
+        elif bot.user.return_request is not None:
+            bot.return_request_processing()
             return True
-        if help_request is not None:
-            # help operations
-            request = help_request
-            if request[2] == 'H: wait_for_question':
-                question = msg.text
-                request[2] = 'H: user_wait_for_response'
-                request[5] = question
-                tgbot.send_message(user_id, text="⏰ Ответ на ваш вопрос будет в чате с ботом, ожидайте!",
-                                   reply_markup=CANCEL_HELP_RQ)
-            if request is not None:
-                update_request_in_db(c, request)
-
-            if request is not None:
-                update_request_in_db(c, request)
+        elif bot.user.service_request is not None:
+            bot.service_request_processing()
             return True
-        if replenish_request is not None:
-            request = replenish_request
-            # balance operations
-            if request[2] == "B: wait for replenish value":
-                replenish_value = get_value(msg.text)
-
-                if replenish_value_is_acceptable(replenish_value):
-                    request[3] = f'replenish {replenish_value}'
-                    request[5] = f"Пополнение баланса на сумму: {replenish_value} ₽"
-                    update_request_in_db(c, request)
-                    tgbot.send_message(user_id, text=f"Пополнение баланса на сумму: {replenish_value} ₽",
-                                       reply_markup=REPLENISH_CONFIRM_KEYBOARD)
-
-                else:
-                    tgbot.send_message(user_id, text='Недопустимое значение, попробуйте снова')
-            elif request[2] == "B: waiting_for_purchase":
-                tgbot.send_message(user_id,
-                                   text='Выберите способ оплаты!', reply_markup=PAYMENT_METHODS)
-        if trade_request is not None:
-            request = trade_request
-            if request[2] == "T: wait for trade value":
-                trade_value = get_value(msg.text)
-                key, curr_price = get_key_and_curr_price(request)
-                if trade_value_is_acceptable(trade_value, key):
-                    user_price, user_curr, promotion = get_user_price(curr_price, user, trade_value, key)
-                    if promotion is not None:
-                        tgbot.send_message(user_id, text=f'Это ваша {user[6] + 1} заявка, она будет беспроцентной!')
-
-                    message = get_prepayment_message(user_curr, trade_value, user_price, key)
-                    tgbot.send_message(user_id, text=message, reply_markup=CANCEL_ORDER)
-                    request[2] = 'T: waiting_for_usr_wallet'
-                    request[5] = f"Покупка {trade_value} {key}, К оплате: {user_price}"
-                    request[3] = f'trade {trade_value} {key} {user_curr}'
-                else:
-                    tgbot.send_message(user_id, text='Недопустимое значение, попробуйте снова\n')
-            elif request[2] == "T: waiting_for_usr_wallet":
-                user_wallet = msg.text
-                if check_address(user_wallet):
-                    tgbot.send_message(user_id,
-                                       text=f'После оплаты, криптоваллюта будет отправлена на этот кошелёк:\n'
-                                          f'{user_wallet}',
-                                       reply_markup=WALLET_CONFIRM_KEYBOARD)
-                    request[6] = user_wallet
-                else:
-                    tgbot.send_message(user_id,
-                                       text=f'🙅‍♂️ Такого кошелька не существует! Попробуйте ещё раз.')
-            elif request[2] == "T: waiting_for_priority":
-                tgbot.send_message(user_id,
-                                   text='Выберите желаемую коммиссию сети!',
-                                   reply_markup=REQUEST_PRIORITIES)
-            elif request[2] == "T: waiting_for_purchase":
-                tgbot.send_message(user_id,
-                                   text='Выберите способ оплаты!', reply_markup=PAYMENT_METHODS)
-
-            if request is not None:
-                update_request_in_db(c, request)
-            else:
-                request = get_request_by_telegram_id(c, user_id, status='user_confirmed')
-                if request is None:
-                    request = get_request_by_telegram_id(c, user_id, rq_type='replenish', status='user_confirmed')
-                    if request is None:
-                        request = get_request_by_telegram_id(c, user_id, rq_type='replenish', status='user_payed')
-                    if request is not None:
-                        tgbot.send_message(user_id,
-                                           text=f'⏰ Ваша завяка обрабатывается. Уникальный номер заявки: {user_id}',
-                                           reply_markup=SHOW_OR_CANCEL_REPLENISH_ORDER)
+        elif bot.user.help_request is not None:
+            bot.help_request_processing()
+            return True
+        elif bot.user.replenish_request is not None:
+            bot.replenish_request_processing()
+            return True
+        elif bot.user.trade_request is not None:
+            bot.trade_request_processing()
 
 
 @tgbot.callback_query_handler(func=lambda call: True)
 def buttons_stuff(call):
-    c = sqlite3.connect('database.db')
-    user_id = call.message.chat.id
-    user = get_user_by_telegram_id(c, user_id)
-    trade_request, help_request, replenish_request, service_request, return_request = get_requests(c, user_id)
-    request = None
-    print(trade_request, 'found (buttons_stuff) trade')
-    print(help_request, 'found (buttons_stuff) help')
-    print(replenish_request, 'found (buttons_stuff) replenish')
-    print(service_request, 'found (buttons_stuff) service')
-    print(return_request, 'found (buttons_stuff) return')
-    print(call.data)
+    bot = Bot(tgbot, currency_bot, call=call)
+    bot.database = DataBase()
 
-    if str(user_id) in OPERATORS or str(user_id) in ADMINS:
+    print('calldata: ', call.data)
+    print(bot.user.trade_request, 'found trade (buttons)')
+    print(bot.user.help_request, 'found help (buttons)')
+    print(bot.user.replenish_request, 'found replenish (buttons)')
+    print(bot.user.service_request, 'found service (buttons)')
+    print(bot.user.return_request, 'found return (buttons)')
+
+    if bot.user.is_admin or bot.user.is_operator:
         if 'send_msg' in call.data:
-            call_data, client_id, message = call.data.split(':')
-            tgbot.send_message(client_id,
-                               text=f'Вам написал сотрудник тех. поддержки: {message}')
-            tgbot.send_message(user_id,
-                               text='Сообщение отправлено!')
-            delete_request_from_db(c, service_request[0])
+            bot.send_message_from_operator()
             return True
         elif 'send_status' in call.data:
-            client_id, message = get_status_message(c, call)
-            tgbot.send_message(user_id, text='Пользователь получил сообщение.')
-            tgbot.send_message(client_id, text=message)
+            bot.send_status_from_operator()
             return True
         elif 'sendanswer' in call.data:
-            call_data, client_id, answer = call.data.split(' ')
-            request = get_request_by_telegram_id(c, client_id, rq_type='help_request')
-            tgbot.send_message(int(client_id),
-                               text=f'На ваш вопрос ответили!\nОтвет: {answer}\nВопрос автоматически закрыт')
-            tgbot.send_message(user_id, text='Ответ отправлен, вопрос автоматически закрыт.')
-            delete_request_from_db(c, request[0])
-            delete_request_from_db(c, service_request[0])
+            bot.send_answer_from_operator()
             return True
         elif 'answer' in call.data:
-            add_request_to_db(c, [user_id, 'S: wait_for_answer',
-                                  f'service_request', str(datetime.now()), 'None', 'None'])
-            tgbot.send_message(user_id, text="Отправьте ответ на вопрос следующим сообщением!")
+            bot.send_wait_for_operator_answer()
             return True
         elif 'cancel_question' in call.data:
             call_data, rq_id = call.data.split(" ")
