@@ -5,6 +5,7 @@ from sqlite3 import Error
 from models import User, Request
 from content import BotContent
 
+
 def get_request_from_db(request: tuple) -> Request:
     request = Request(db_id=request[0],
                       telegram_id=request[1],
@@ -115,14 +116,6 @@ class DataBase:
         self.cursor.execute(sql, request.database_list())
         self.c.commit()
 
-    def take_money_from_user_balance(self, user: User, amount: (int or float), ):
-        if (float(user.balance) - float(amount)) > 0:
-            user.balance = float(user.balance) - float(amount)
-            self.update_user_in_db(user)
-            return True
-        else:
-            return False
-
     def top_up_user_balance(self, user: User, amount: (int or float)):
         user.balance = float(user.balance) + float(amount)
         self.update_user_in_db(user)
@@ -189,19 +182,6 @@ class DataBase:
                                               user.balance,
                                               user.partnership_link)
         return text
-
-    def raise_users_q_of_trades(self, telegram_id):
-        # TODO
-        user = self.get_user_by_telegram_id(telegram_id=telegram_id)
-        if user is not None:
-            user.quantity_of_trades = user.quantity_of_trades + 1
-            if user.quantity_of_trades == TO_ACHIEVE_MEDIUM_STATUS:
-                user.status = MEDIUM_STATUS
-            elif user.quantity_of_trades == TO_ACHIEVE_ADVANCED_STATUS:
-                user.quantity_of_trades = ADVANCED_STATUS
-            self.update_user_in_db(user)
-        else:
-            print('user not found')
 
     def check_requests_shell_life(self):
         requests = self.get_all_requests()

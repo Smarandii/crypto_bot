@@ -44,20 +44,6 @@ def get_type(rq_type):
     return text
 
 
-def get_request_text(request):
-    text = 'None'
-    if request is not None:
-        if "trade" in request[3]:
-            text = show_request(request)
-        elif 'replenish' in request[3]:
-            text = show_replenish_request(request)
-        elif 'return' in request[3]:
-            text = show_return_request(request)
-        elif 'help' in request[3]:
-            text = show_help_request(request)
-        return text
-
-
 def show_replenish_request(request):
     statuses = {'B: wait for replenish value': 'бот ждёт от вас сумму, на которую вы хотите пополнить баланс',
                 'B: wait_for_purchase': 'бот ждёт пока вы выберете способ оплаты',
@@ -105,6 +91,21 @@ def show_return_request(request):
 
     return text
     pass
+
+
+def get_request_text(request):
+    # TODO переделать
+    text = 'None'
+    if request is not None:
+        if "trade" in request.type:
+            text = show_request(request)
+        elif 'replenish' in request.type:
+            text = show_replenish_request(request)
+        elif 'return' in request.type:
+            text = show_return_request(request)
+        elif 'help' in request.type:
+            text = show_help_request(request)
+        return text
 
 
 def get_return_amount(request):

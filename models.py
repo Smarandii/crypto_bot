@@ -147,7 +147,8 @@ class MessageParser:
 
 class CallParser:
     def __init__(self, call):
-        self.call = call
+        self.data = call.data
+        self.message = call.message
 
 
 
