@@ -1,16 +1,8 @@
 from datetime import datetime
-from pycoingecko import CoinGeckoAPI
+
 import coinaddr
-
-
-def time_is_come(last_cur_update):
-    day, time = str(datetime.now()).split(" ")
-    hour, minute, sec = time.split(":")
-
-    last_cur_updt_day, last_cur_updt_time = last_cur_update.split(" ")
-    last_cur_updt_hour, last_cur_updt_minute, last_cur_updt_sec = last_cur_updt_time.split(":")
-
-    return day >= last_cur_updt_day and int(minute) - int(last_cur_updt_minute) >= 5 and round(float(sec)) >= round(float(last_cur_updt_sec))
+from pycoingecko import CoinGeckoAPI
+from modules.functions import time_is_come
 
 
 class CurrencyBot:

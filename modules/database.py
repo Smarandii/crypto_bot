@@ -1,41 +1,8 @@
-from datetime import datetime, timedelta
 import sqlite3
 from sqlite3 import Error
 
-from models import User, Request
-from content import BotContent
-
-
-def get_request_from_db(request: tuple) -> Request:
-    request = Request(db_id=request[0],
-                      telegram_id=request[1],
-                      status=request[2],
-                      rq_type=request[3],
-                      when_created=request[4],
-                      comment=request[5],
-                      wallet=request[6])
-    return request
-
-
-def get_user_from_db(user: tuple) -> User:
-    user = User(db_id=user[0],
-                telegram_id=user[1],
-                balance=user[2],
-                status=user[3],
-                is_follower=user[4],
-                invited_by=user[5],
-                quantity_of_trades=user[6],
-                earned_from_partnership=user[7]
-                )
-    return user
-
-
-def request_time_is_done(request_time):
-    # 2020-08-06 18:33:02.276834
-    tdelta = timedelta(hours=1)
-    now = datetime.now()
-
-    return request_time < str(now - tdelta)
+from modules.functions import get_user_from_db, get_request_from_db, request_time_is_done
+from modules.models import User, Request
 
 
 class DataBase:
@@ -175,14 +142,6 @@ class DataBase:
         for user in users:
             print(user)
 
-    def get_partnership_text(self, user: User):
-        amount_invited_by_user = self.get_number_of_invitations(user.telegram_id)
-        text = MESSAGES['partnership'].format(amount_invited_by_user,
-                                              user.earned_from_partnership,
-                                              user.balance,
-                                              user.partnership_link)
-        return text
-
     def check_requests_shell_life(self):
         requests = self.get_all_requests()
         for request in requests:
@@ -240,11 +199,10 @@ class DataBase:
         return None
 
     def get_number_of_invitations(self, telegram_id):
-        with self.c:
-            self.cursor.execute(f"SELECT * FROM users WHERE invited_by = ({telegram_id})")
-            res = self.cursor.fetchall()
-            number = len(res)
-            return number
+        self.cursor.execute(f"SELECT * FROM users WHERE invited_by = ({telegram_id})")
+        res = self.cursor.fetchall()
+        number = len(res)
+        return number
 
     def pay_inviter(self, telegram_id, fee):
         # TODO

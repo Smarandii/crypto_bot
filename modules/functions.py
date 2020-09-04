@@ -1,23 +1,48 @@
+from datetime import timedelta, datetime
 
-from content import BotContent
-from models import Request
-
-
-def get_price_from_request(request: Request):
-    price = request.comment.split(': ')[1]
-    return float(price)
+from modules.models import Request, User
 
 
-def change_request_comment_price(request: Request, amount: float):
-    price = get_price_from_request(request)
-    price = round(price + amount, 2)
-    if amount == 0:
-        request.comment = request.comment + ' Обычная комиссия'
-    if amount == BotContent.ADV_PRIORITY_PRICE:
-        request.comment = request.comment.split(': ')[0] + f': {price} Комиссия повышенная'
-    if amount == BotContent.MAX_PRIORITY_PRICE:
-        request.comment = request.comment.split(': ')[0] + f': {price} Комиссия максимальная'
-    return request.comment
+def time_is_come(last_cur_update):
+    day, time = str(datetime.now()).split(" ")
+    hour, minute, sec = time.split(":")
+
+    last_cur_updt_day, last_cur_updt_time = last_cur_update.split(" ")
+    last_cur_updt_hour, last_cur_updt_minute, last_cur_updt_sec = last_cur_updt_time.split(":")
+
+    return day >= last_cur_updt_day and int(minute) - int(last_cur_updt_minute) >= 5 and round(float(sec)) >= round(float(last_cur_updt_sec))
+
+
+def get_request_from_db(request: tuple) -> Request:
+    request = Request(db_id=request[0],
+                      telegram_id=request[1],
+                      status=request[2],
+                      rq_type=request[3],
+                      when_created=request[4],
+                      comment=request[5],
+                      wallet=request[6])
+    return request
+
+
+def get_user_from_db(user: tuple) -> User:
+    user = User(db_id=user[0],
+                telegram_id=user[1],
+                balance=user[2],
+                status=user[3],
+                is_follower=user[4],
+                invited_by=user[5],
+                quantity_of_trades=user[6],
+                earned_from_partnership=user[7]
+                )
+    return user
+
+
+def request_time_is_done(request_time):
+    # request_time = 2020-08-06 18:33:02.276834
+    tdelta = timedelta(hours=1)
+    now = datetime.now()
+
+    return request_time < str(now - tdelta)
 
 
 def get_type(rq_type):
@@ -54,15 +79,14 @@ def show_replenish_request(request):
                 'user_payed': 'бот пополнил ваш баланс',
                 "B: waiting_for_priority": 'бот ждёт, пока вы выберите приоритет заявки'
                 }
-    print(request)
-    rq_type = request[5]
+    rq_type = request.comment
     if rq_type is None:
         rq_type = 'Пополнение баланса'
-    text = f'🖊 Уникальный № - {1000 + request[0]}\n' \
+    text = f'🖊 Уникальный № - {1000 + request.db_id}\n' \
            f'🛒 Тип - {rq_type}\n' \
-           f'🔄 Статус - {statuses[request[2]]}\n' \
-           f'🕐 Когда создана - {request[4][:19:].replace("-", ".")}\n' \
-           f'🙋 Персональный идентификатор - {request[1]}'
+           f'🔄 Статус - {statuses[request.status]}\n' \
+           f'🕐 Когда создана - {request.when_created[:19:].replace("-", ".")}\n' \
+           f'🙋 Персональный идентификатор - {request.telegram_id}'
     return text
 
 
@@ -112,7 +136,7 @@ def get_request_text(request):
 
 
 def get_return_amount(request):
-    return_amount = request[5].split(" ")[0]
+    return_amount = request.comment.split(" ")[0]
     return int(return_amount)
 
 
@@ -153,61 +177,6 @@ def get_trade_information(request: Request) -> str:
     trade_information = request.comment.split(', ')[0]
     trade_information += '\n' + request.comment.split(',')[1]
     return trade_information
-
-
-def get_fee(request):
-    fee = request[5].split(": ")[1]
-    return round(float(fee) * 0.003, 2)
-
-
-def get_operators_list() -> list:
-    operators = []
-    with open(BotContent.ADMINS_LIST, 'r') as f:
-        for operator in f:
-            operators.append(operator[:-1:])
-    return operators
-
-
-def get_admins_list() -> list:
-    operators = []
-    with open(BotContent.OPERATORS_LIST, 'r') as f:
-        for operator in f:
-            operators.append(operator[:-1:])
-    return operators
-
-
-def add_admin(new_admin_id: str):
-    new_admin_id = str(new_admin_id)
-    with open(ADMINS_LIST, 'a') as f:
-        f.write(new_admin_id + "\n")
-
-
-def add_operator(new_operator_id: str):
-    new_operator_id = str(new_operator_id)
-    with open(OPERATORS_LIST, 'a') as f:
-        f.write(new_operator_id + "\n")
-
-
-def delete_admin(admin_id):
-    admin_id = str(admin_id)
-    admins = get_admins_list()
-    with open(ADMINS_LIST, 'w') as f:
-        for admin in admins:
-            if admin != admin_id:
-                continue
-            else:
-                f.write(admin_id + "\n")
-
-
-def delete_operator(operator_id):
-    operator_id = str(operator_id)
-    operators = get_admins_list()
-    with open(OPERATORS_LIST, 'w') as f:
-        for operator in operators:
-            if operator != operator_id:
-                continue
-            else:
-                f.write(operator + "\n")
 
 
 if __name__ == "__main__":

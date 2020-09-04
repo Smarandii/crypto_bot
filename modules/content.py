@@ -1,7 +1,3 @@
-from models import User
-
-TOKEN = '1111584809:AAHpcR7604kJstmh-k7w0qhApYret_P81g4'
-
 
 class BotContent:
     BOT_TAG = 'crypto_bot_bot_bot'
@@ -25,6 +21,7 @@ class BotContent:
 
     # SPECIAL INFO FOR BOT
     BASE_REQUEST_NUM = 1000
+    REFERAL_PERCENT = 0.003
     RETURN_PERCENT = 0.9
     PERCENTS = {'under_5k_f': {'Bitcoin': 0.12,
                                'LiteCoin': 0.10,
@@ -88,15 +85,26 @@ class BotContent:
     TO_ACHIEVE_MEDIUM_STATUS = 40
     TO_ACHIEVE_ADVANCED_STATUS = 100
     MIN_VALUE_FOR_RETURN = 150
-    MAX_VALUE_FOR_RETURN = 1000
-    ADV_PRIORITY_PRICE = 80
-    MAX_PRIORITY_PRICE = 230
+
+    ADV_COMMISSION_PRICE = 80
+    MAX_COMMISSION_PRICE = 230
+
+    COMMISSION = {
+        'priority_usl': 0,
+        'priority_adv': ADV_COMMISSION_PRICE,
+        'priority_max': MAX_COMMISSION_PRICE
+    }
 
     REQUISITES = {
         'pay_sber': SBER_REQUISITES,
         'pay_yandex': YANDEX_REQUISITES,
         'pay_advcash': ADVCASH_REQUISITES,
     }
+
+    BITCOIN_WALLET_EXAMPLE = '3GncF7muEw1oayeuH33rxahdmtHSWoj4tw'
+    LITCOIN_WALLET_EXAMPLE = 'MDwCMAofN9K4U8e9EPMzs57Asams2AFBen'
+    ETHEREUM_WALLET_EXAMPLE = '0x2Fe62eae2fB629808C94E55AF69fB373FD959980'
+    BITCOINCASH_WALLET_EXAMPLE = '3GncF7muEw1oayeuH33rxahdmtHSWoj4tw'
 
     MESSAGES = {
         'channel_suggest': "❓ Ещё не подписаны на наш канал и не в групповом чате?\n"
@@ -154,13 +162,13 @@ class BotContent:
         'return_cancel_warning': 'Деньги уже были списаны с вашего баланса! '
                          'Подождите пока бот отправит их на указанные реквизиты.'
                          'Если вы отмените заявку, то платёж может потеряться! Вы уверены, что хотите отменить заявку?',
-        'usual_commission': 'Комиссия установлена! Ваша заявка будет обработана как только '
+        'priority_usl': 'Комиссия установлена! Ваша заявка будет обработана как только '
                             'бот освободится от обработки заявок с более высокими комиссиями.\n'
                             'Выберите способ оплаты!',
-        'adv_commission': 'Комиссия установлена! Ваша заявка будет обработана как только '
+        'priority_adv': 'Комиссия установлена! Ваша заявка будет обработана как только '
                           'бот освободится от обработки заявок с максимальными комиссиями.\n'
                           'Выберите способ оплаты!',
-        'max_commission': 'Комиссия установлена! Ваша заявка будет обработана в самое ближайшее время.\n'
+        'priority_max': 'Комиссия установлена! Ваша заявка будет обработана в самое ближайшее время.\n'
                           'Выберите способ оплаты!',
         'edit_wallet': 'Введите новый кошелёк следующим сообщением!',
         'wallet_correct': 'Выберите желаемую комиссию сети!',
@@ -204,10 +212,29 @@ class BotContent:
         'request_exist_warning': 'У вас уже есть заявка, желаете её отменить?'
     }
 
-    def get_status_discount(self, user: User):
+    def get_price_from_request(self, request):
+        price = request.comment.split(': ')[1]
+        return float(price)
+
+    def change_request_comment_price(self, request, amount: float):
+        price = self.get_price_from_request(request)
+        price = round(price + amount, 2)
+        if amount == 0:
+            request.comment = request.comment + ' Обычная комиссия'
+        if amount == self.ADV_COMMISSION_PRICE:
+            request.comment = request.comment.split(': ')[0] + f': {price} Комиссия повышенная'
+        if amount == self.MAX_COMMISSION_PRICE:
+            request.comment = request.comment.split(': ')[0] + f': {price} Комиссия максимальная'
+        return request.comment
+
+    def get_fee(self, request):
+        fee = request.comment.split(": ")[1]
+        return round(float(fee) * self.REFERAL_PERCENT, 2)
+
+    def get_status_discount(self, user):
         return self.DISCOUNTS[user.status]
 
-    def get_user_price(self, curr_price, user: User, trade_value, key):
+    def get_user_price(self, curr_price, user, trade_value, key):
         user_price = float(curr_price) * float(trade_value)
         discount = self.get_status_discount(user)
         promotion = None
@@ -235,22 +262,66 @@ class BotContent:
             else:
                 return 'price is too low'
         user_curr = float(curr_price) + float(curr_price) * percent
-        user_price = (user_curr) * float(trade_value)
+        user_price = user_curr * float(trade_value)
         if key == "EXMOCoin":
             user_price -= 5
         return round(user_price, 2) - user_price * discount, user_curr, promotion
+
+    def get_admins_list(self) -> list:
+        admins = []
+        with open(self.ADMINS_LIST, 'r') as f:
+            for admin in f:
+                admins.append(admin[:-1:])
+        return admins
+
+    def get_operators_list(self) -> list:
+        operators = []
+        with open(self.ADMINS_LIST, 'r') as f:
+            for operator in f:
+                operators.append(operator[:-1:])
+        return operators
+
+    def add_admin(self, new_admin_id: str):
+        new_admin_id = str(new_admin_id)
+        with open(self.ADMINS_LIST, 'a') as f:
+            f.write(new_admin_id + "\n")
+
+    def add_operator(self, new_operator_id: str):
+        new_operator_id = str(new_operator_id)
+        with open(self.OPERATORS_LIST, 'a') as f:
+            f.write(new_operator_id + "\n")
+
+    def delete_operator(self, operator_id):
+        operator_id = str(operator_id)
+        operators = self.get_admins_list()
+        with open(self.OPERATORS_LIST, 'w') as f:
+            for operator in operators:
+                if operator != operator_id:
+                    continue
+                else:
+                    f.write(operator + "\n")
+
+    def delete_admin(self, admin_id):
+        admin_id = str(admin_id)
+        admins = self.get_admins_list()
+        with open(self.ADMINS_LIST, 'w') as f:
+            for admin in admins:
+                if admin != admin_id:
+                    continue
+                else:
+                    f.write(admin_id + "\n")
 
     def get_prepayment_message(self, user_curr, trade_value, user_price, key) -> str:
         messages = {'Bitcoin': f"Курс: {user_curr} руб.\n"
                                f"Покупка {trade_value} {key}\n"
                                f"К оплате: {user_price} руб.\n"
                                f"Следующим сообщением отправьте нам ваш криптокошелёк.\n"
-                               f"Пример: 3GncF7muEw1oayeuH33rxahdmtHSWoj4tw",
+                               f"Пример: {self.BITCOIN_WALLET_EXAMPLE}",
                     'LiteCoin': f"Курс: {user_curr} руб.\n"
                                 f"Покупка {trade_value} {key}\n"
                                 f"К оплате: {user_price} руб.\n"
                                 f"Следующим сообщением отправьте нам ваш криптокошелёк.\n"
-                                f"Пример: MDwCMAofN9K4U8e9EPMzs57Asams2AFBen",
+                                f"Пример: {self.LITCOIN_WALLET_EXAMPLE}",
                     'ExmoRUB': f"Курс: {user_curr} руб.\n"
                                f"Покупка {trade_value} {key}\n"
                                f"К оплате: {user_price} руб.\n",
@@ -258,11 +329,11 @@ class BotContent:
                                 f"Покупка {trade_value} {key}\n"
                                 f"К оплате: {user_price} руб.\n"
                                 f"Следующим сообщением отправьте нам ваш криптокошелёк.\n"
-                                f"Пример: 0x2Fe62eae2fB629808C94E55AF69fB373FD959980",
+                                f"Пример: {self.ETHEREUM_WALLET_EXAMPLE}",
                     'Bitcoin Cash': f"Курс: {user_curr} руб.\n"
                                     f"Покупка {trade_value} {key}\n"
                                     f"К оплате: {user_price} руб.\n"
                                     f"Следующим сообщением отправьте нам ваш криптокошелёк.\n"
-                                    f"Пример: 3GncF7muEw1oayeuH33rxahdmtHSWoj4tw",
+                                    f"Пример: {self.BITCOINCASH_WALLET_EXAMPLE}",
                     }
         return messages[key]

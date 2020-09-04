@@ -1,9 +1,10 @@
-from telebot import TeleBot
-from content import TOKEN
-from currency import *
-from database import *
-from telegram_bot import Bot
+from telebot import TeleBot, types
+from modules.currency import CurrencyBot
+from modules.database import DataBase
+from modules.telegram_bot import Bot
 
+TOKEN = '1111584809:AAHpcR7604kJstmh-k7w0qhApYret_P81g4'
+types = types
 
 tgbot = TeleBot(TOKEN)
 currency_bot = CurrencyBot()
@@ -11,62 +12,62 @@ currency_bot = CurrencyBot()
 
 @tgbot.message_handler(content_types=['sticker', 'file', 'photo', 'video', 'audio'])
 def send_u_menu(msg):
-    bot = Bot(tgbot, msg, currency_bot)
+    bot = Bot(tgbot, msg, currency_bot, types)
     bot.send_main_menu()
 
 
 @tgbot.message_handler(commands=['user'])
 def send_u_menu(msg):
-    bot = Bot(tgbot, msg, currency_bot)
+    bot = Bot(tgbot, msg, currency_bot, types)
     bot.send_main_menu()
 
 
 @tgbot.message_handler(commands=['operator'])
 def send_operator_menu(msg):
-    bot = Bot(tgbot, msg, currency_bot)
+    bot = Bot(tgbot, msg, currency_bot, types)
     bot.send_o_menu()
 
 
 @tgbot.message_handler(commands=['admin'])
 def send_admin_menu(msg):
-    bot = Bot(tgbot, msg, currency_bot)
+    bot = Bot(tgbot, msg, currency_bot, types)
     bot.send_a_menu()
 
 
 @tgbot.message_handler(commands=['addadmin'])
 def add_new_admin(msg):
-    bot = Bot(tgbot, msg, currency_bot)
+    bot = Bot(tgbot, msg, currency_bot, types)
     bot.add_new_admin()
 
 
 @tgbot.message_handler(commands=['addoper'])
 def add_new_operator(msg):
-    bot = Bot(tgbot, msg, currency_bot)
+    bot = Bot(tgbot, msg, currency_bot, types)
     bot.add_new_operator()
 
 
 @tgbot.message_handler(commands=['deloper'])
 def delete_operator(msg):
-    bot = Bot(tgbot, msg, currency_bot)
+    bot = Bot(tgbot, msg, currency_bot, types)
     bot.delete_operator()
 
 
 @tgbot.message_handler(commands=['deladmin'])
 def delete_admin(msg):
-    bot = Bot(tgbot, msg, currency_bot)
+    bot = Bot(tgbot, msg, currency_bot, types)
     bot.delete_admin()
 
 
 @tgbot.message_handler(commands=['start'])
 def start_menu(msg):
-    bot = Bot(tgbot, msg, currency_bot)
+    bot = Bot(tgbot, msg, currency_bot, types)
     bot.database = DataBase()
     bot.send_start()
 
 
 @tgbot.message_handler(content_types=['text'])
 def msg_analyzer(msg):
-    bot = Bot(tgbot, msg=msg, curr_bot=currency_bot)
+    bot = Bot(tgbot, msg=msg, curr_bot=currency_bot, types=types)
     bot.database = DataBase()
     print(bot.user.trade_request, 'found trade')
     print(bot.user.help_request, 'found help')
@@ -78,7 +79,7 @@ def msg_analyzer(msg):
 
 @tgbot.callback_query_handler(func=lambda call: True)
 def buttons_stuff(call):
-    bot = Bot(tgbot, currency_bot, call=call)
+    bot = Bot(tgbot, currency_bot, call=call, types=types)
     bot.database = DataBase()
 
     print('calldata: ', call.data)

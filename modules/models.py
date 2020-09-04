@@ -1,5 +1,4 @@
-from content import BotContent
-from functions import get_operators_list, get_admins_list
+from modules.content import BotContent
 
 
 class Request:
@@ -55,9 +54,9 @@ class User:
         self.invited_by = int(invited_by)
         self.quantity_of_trades = int(quantity_of_trades)
         self.earned_from_partnership = float(earned_from_partnership)
-        self.partnership_link = fr'https://t.me/{BOT_TAG}?start={hex(telegram_id)}'
-        self.is_admin = str(self.telegram_id) in get_admins_list()
-        self.is_operator = str(self.telegram_id) in get_operators_list() or self.is_admin
+        self.partnership_link = None
+        self.is_admin = False
+        self.is_operator = False
         self.return_request = None
         self.service_request = None
         self.replenish_request = None
