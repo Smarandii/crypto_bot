@@ -1,6 +1,5 @@
 from telebot import types
-
-from content import URLS
+from content import BotContent
 
 
 def one_button_keyboard(text, callback_line, url=None):
@@ -132,8 +131,8 @@ class UserMenu:
 
     def suggestion_menu(self):
         keyboard = types.InlineKeyboardMarkup(row_width=1)
-        group_btn = types.InlineKeyboardButton(text="Наш групповой чат 💬", url=URLS['group'])
-        channel_btn = types.InlineKeyboardButton(text="Наш канал 📢", url=URLS['channel'])
+        group_btn = types.InlineKeyboardButton(text="Наш групповой чат 💬", url=BotContent.URLS['group'])
+        channel_btn = types.InlineKeyboardButton(text="Наш канал 📢", url=BotContent.URLS['channel'])
         keyboard.add(group_btn, channel_btn)
         return keyboard
 

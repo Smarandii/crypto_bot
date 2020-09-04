@@ -1,20 +1,23 @@
 
 from content import BotContent
+from models import Request
 
 
-def get_price_from_request(request):
-    price = request[5].split(': ')[1]
+def get_price_from_request(request: Request):
+    price = request.comment.split(': ')[1]
     return float(price)
 
 
-def change_request_comment_price(request, amount: float):
+def change_request_comment_price(request: Request, amount: float):
     price = get_price_from_request(request)
     price = round(price + amount, 2)
-    if amount == ADV_PRIORITY_PRICE:
-        request[5] = request[5].split(': ')[0] + f': {price} Комиссия повышенная'
-    if amount == MAX_PRIORITY_PRICE:
-        request[5] = request[5].split(': ')[0] + f': {price} Комиссия максимальная'
-    return request[5]
+    if amount == 0:
+        request.comment = request.comment + ' Обычная комиссия'
+    if amount == BotContent.ADV_PRIORITY_PRICE:
+        request.comment = request.comment.split(': ')[0] + f': {price} Комиссия повышенная'
+    if amount == BotContent.MAX_PRIORITY_PRICE:
+        request.comment = request.comment.split(': ')[0] + f': {price} Комиссия максимальная'
+    return request.comment
 
 
 def get_type(rq_type):
@@ -146,9 +149,9 @@ def show_request(request):
     return text
 
 
-def get_trade_information(request) -> str:
-    trade_information = request[5].split(', ')[0]
-    trade_information += '\n' + request[5].split(',')[1]
+def get_trade_information(request: Request) -> str:
+    trade_information = request.comment.split(', ')[0]
+    trade_information += '\n' + request.comment.split(',')[1]
     return trade_information
 
 
@@ -159,7 +162,7 @@ def get_fee(request):
 
 def get_operators_list() -> list:
     operators = []
-    with open(ADMINS_LIST, 'r') as f:
+    with open(BotContent.ADMINS_LIST, 'r') as f:
         for operator in f:
             operators.append(operator[:-1:])
     return operators
@@ -167,7 +170,7 @@ def get_operators_list() -> list:
 
 def get_admins_list() -> list:
     operators = []
-    with open(OPERATORS_LIST, 'r') as f:
+    with open(BotContent.OPERATORS_LIST, 'r') as f:
         for operator in f:
             operators.append(operator[:-1:])
     return operators

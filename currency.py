@@ -1,7 +1,6 @@
 from datetime import datetime
 from pycoingecko import CoinGeckoAPI
 import coinaddr
-cg = CoinGeckoAPI()
 
 
 def time_is_come(last_cur_update):
@@ -28,6 +27,7 @@ class CurrencyBot:
                     'BitCoinCash': 'BitCoinCash (BCH)', }
 
     def __init__(self):
+        self.cg = CoinGeckoAPI()
         self.btc_currency = 0
         self.ltc_currency = 0
         self.bch_currency = 0
@@ -59,10 +59,10 @@ class CurrencyBot:
     def update_all_currencies(self):
 
         if self.last_cur_update is None or time_is_come(str(self.last_cur_update)):
-            self.btc_currency = cg.get_price('bitcoin', 'rub')['bitcoin']['rub']
-            self.ltc_currency = cg.get_price('litecoin', 'rub')['litecoin']['rub']
-            self.bch_currency = cg.get_price('bitcoin-cash', 'rub')['bitcoin-cash']['rub']
-            self.eth_currency = cg.get_price('ethereum', 'rub')['ethereum']['rub']
+            self.btc_currency = self.cg.get_price('bitcoin', 'rub')['bitcoin']['rub']
+            self.ltc_currency = self.cg.get_price('litecoin', 'rub')['litecoin']['rub']
+            self.bch_currency = self.cg.get_price('bitcoin-cash', 'rub')['bitcoin-cash']['rub']
+            self.eth_currency = self.cg.get_price('ethereum', 'rub')['ethereum']['rub']
 
             return datetime.now()
 
