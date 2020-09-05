@@ -10,17 +10,28 @@ def time_is_come(last_cur_update):
     last_cur_updt_day, last_cur_updt_time = last_cur_update.split(" ")
     last_cur_updt_hour, last_cur_updt_minute, last_cur_updt_sec = last_cur_updt_time.split(":")
 
-    return day >= last_cur_updt_day and int(minute) - int(last_cur_updt_minute) >= 5 and round(float(sec)) >= round(float(last_cur_updt_sec))
+    return day >= last_cur_updt_day and int(minute) - int(last_cur_updt_minute) >= 5 and \
+           round(float(sec)) >= round(float(last_cur_updt_sec))
 
 
 def get_request_from_db(request: tuple) -> Request:
-    request = Request(db_id=request[0],
-                      telegram_id=request[1],
-                      status=request[2],
-                      rq_type=request[3],
-                      when_created=request[4],
-                      comment=request[5],
-                      wallet=request[6])
+    if len(request) == 7:
+        request = Request(
+              db_id=request[0],
+              telegram_id=request[1],
+              status=request[2],
+              rq_type=request[3],
+              when_created=request[4],
+              comment=request[5],
+              wallet=request[6])
+    elif len(request) == 6:
+        request = Request(
+            telegram_id=request[0],
+            status=request[1],
+            rq_type=request[2],
+            when_created=request[3],
+            comment=request[4],
+            wallet=request[5])
     return request
 
 
@@ -93,11 +104,11 @@ def show_replenish_request(request):
 def show_help_request(request):
     statuses = {'H: wait_for_question': 'бот ждёт от вас вопрос, который вы хотите задать.',
                 'H: user_wait_for_response': 'вы задали нам вопрос, ожидайте ответ.', }
-    text = f'❓ Ваш вопрос - "{request[5]}"\n' \
-           f'🖊 Уникальный № - {300 + request[0]}\n' \
-           f'🔄 Статус - {statuses[request[2]]}\n' \
-           f'🕐 Когда создан - {request[4]}\n' \
-           f'🙋 Персональный идентификатор - {request[1]}'
+    text = f'❓ Ваш вопрос - "{request.comment}"\n' \
+           f'🖊 Уникальный № - {300 + request.db_id}\n' \
+           f'🔄 Статус - {statuses[request.status]}\n' \
+           f'🕐 Когда создан - {request.when_created}\n' \
+           f'🙋 Персональный идентификатор - {request.telegram_id}'
 
     return text
 
@@ -109,15 +120,14 @@ def show_return_request(request):
                 "R: wait for return requisites": 'бот ждёт от вас ваши реквизиты',
                 'user_payed': 'бот отправляет вам валюту',
                 "R: waiting_for_priority": 'бот ждёт, пока вы выберите приоритет заявки'}
-    text = f'🖊 Уникальный № - {1000 + request[0]}\n' \
-           f'🛒 Тип - {request[5]}\n' \
-           f'🔄 Статус - {statuses[request[2]]}\n' \
-           f'🕐 Когда создан - {request[4][:19:].replace("-", ".")}\n' \
-           f'🙋 Персональный идентификатор - {request[1]}\n' \
-           f'🏦 Реквизиты - {request[6]}\n'
+    text = f'🖊 Уникальный № - {1000 + request.db_id}\n' \
+           f'🛒 Тип - {request.comment}\n' \
+           f'🔄 Статус - {statuses[request.status]}\n' \
+           f'🕐 Когда создан - {request.when_created[:19:].replace("-", ".")}\n' \
+           f'🙋 Персональный идентификатор - {request.telegram_id}\n' \
+           f'🏦 Реквизиты - {request.wallet}\n'
 
     return text
-    pass
 
 
 def get_request_text(request):
@@ -141,8 +151,6 @@ def get_return_amount(request):
 
 
 def show_request(request):
-    # (id integer PRIMARY KEY, telegram_id text, status text,
-    # type text, when_created text, comment text, wallet text)
     statuses = {'T: wait for trade value': 'бот ждёт от вас количество криптоваллюты, которое вы хотите приобрести',
                 'T: waiting_for_usr_wallet': 'бот ждёт от вас ваш криптокошелёк',
                 'T: waiting_for_purchase': 'бот ждёт, пока вы подтвердите оплату',
@@ -160,15 +168,15 @@ def show_request(request):
         'T: user_not_payed': ''
     }
 
-    warning = switcher[request[2]]
+    warning = switcher[request.status]
 
-    text = f'🖊 Уникальный № - {1000 + request[0]}\n' \
-           f'🛒 Тип - {get_type(request[3])}\n' \
+    text = f'🖊 Уникальный № - {1000 + request.db_id}\n' \
+           f'🛒 Тип - {get_type(request.type)}\n' \
            f'{warning}' \
-           f'🔄 Статус - {statuses[request[2]]}\n' \
-           f'🕐 Когда создан - {request[4][:19:].replace("-", ".")}\n' \
-           f'🙋 Персональный идентификатор - {request[1]}\n' \
-           f'🏦 Кошелёк, на который бот отправит криптовалюту - {request[6]}\n'
+           f'🔄 Статус - {statuses[request.status]}\n' \
+           f'🕐 Когда создан - {request.when_created[:19:].replace("-", ".")}\n' \
+           f'🙋 Персональный идентификатор - {request.telegram_id}\n' \
+           f'🏦 Кошелёк, на который бот отправит криптовалюту - {request.wallet}\n'
 
     return text
 

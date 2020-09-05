@@ -27,7 +27,7 @@ class Buttons:
         self.REPLENISH_BALANCE_FROM_NEW_MSG = self.one_button_keyboard(text="Пополнить баланс",
                                                              callback_line='replenish_balance_nwmsg')
         self.CANCEL_ORDER = self.one_button_keyboard(text="🚫 Отменить заявку", callback_line='cancel_trade')
-        self.CANCEL_HELP_RQ = self.one_button_keyboard(text="🚫 Удалить вопрос", callback_line='cancel_help_rq')
+        self.CANCEL_HELP_RQ = self.one_button_keyboard(text="🚫 Удалить вопрос", callback_line='cancel_help_request')
         self.CANCEL_REPLENISH = self.one_button_keyboard(text='🚫 Отменить заявку', callback_line='cancel_replenish')
         self.CANCEL_RETURN = self.one_button_keyboard(text='🚫 Отменить заявку', callback_line='cancel_return')
         self.SHOW_OR_CANCEL_TRADE_ORDER = self.keyboard_maker(2, ['🚫 Отменить заявку', '❓ Показать заявку'],
@@ -42,8 +42,12 @@ class Buttons:
                                                  ['edit_wallet', 'wallet_correct'])
         self.PURCHASE_CONFIRM_KEYBOARD = self.keyboard_maker(2, ['👌 Оплатил', '🚫 Отменить заявку'],
                                                    ['user_confirmed_payment', 'cancel_trade'])
+        self.PURCHASE_CONFIRM_REPLENISH_KEYBOARD = self.keyboard_maker(2, ['👌 Оплатил', '🚫 Отменить заявку'],
+                                                             ['user_confirmed_payment_replenish', 'cancel_replenish'])
+        self.BALANCE_PAY_CONFIRM_REPLENISH_KEYBOARD = self.keyboard_maker(2, ['👌 Оплатить', '🚫 Отменить заявку'],
+                                                      ['user_confirmed_blnc_replenish', 'cancel_replenish'])
         self.BALANCE_PAY_CONFIRM_KEYBOARD = self.keyboard_maker(2, ['👌 Оплатить', '🚫 Отменить заявку'],
-                                                      ['user_confirmed_blnc', 'cancel'])
+                                                                ['user_confirmed_blnc', 'cancel_trade'])
 
         self.PAYMENT_METHODS = self.keyboard_maker(4, ['Сбербанк', 'Яндекс.Деньги', 'AdvCash', 'Списать деньги с баланса'],
                                          ['pay_sber', 'pay_yandex', 'pay_advcash', 'pay_balance'])
@@ -51,7 +55,7 @@ class Buttons:
         self.PAYMENT_METHODS.add(self.CANCEL)
 
         self.REPLENISH_METHODS = self.keyboard_maker(4, ['Сбербанк', 'Яндекс.Деньги', 'AdvCash', '🚫 Отменить заявку'],
-                                           ['pay_sber', 'pay_yandex', 'pay_advcash', 'cancel'])
+                                           ['pay_sber_replenish', 'pay_yandex_replenish', 'pay_advcash_replenish', 'cancel_replenish'])
 
         self.REQUEST_PRIORITIES = self.keyboard_maker(3, ['Обычная', 'Повышенная (+80р.)', "Максимальная (+230р.)"],
                                             ['priority_usl', 'priority_adv', 'priority_max'])
@@ -89,14 +93,17 @@ class CryptoMenu:
                     'main_menu': 'Главное меню'
                     }
 
+    def __init__(self, types):
+        self.types = types
+
     def get_menu_markup(self):
-        markup = types.ReplyKeyboardMarkup()
-        currency_btn_btc = types.KeyboardButton(self.MENU_BUTTONS['btc'])
-        currency_btn_ltc = types.KeyboardButton(self.MENU_BUTTONS['ltc'])
-        currency_btn_exmo = types.KeyboardButton(self.MENU_BUTTONS['exmo'])
-        currency_btn_eth = types.KeyboardButton(self.MENU_BUTTONS['eth'])
-        currency_btn_bch = types.KeyboardButton(self.MENU_BUTTONS['bch'])
-        back_btn = types.KeyboardButton(self.MENU_BUTTONS['main_menu'])
+        markup = self.types.ReplyKeyboardMarkup()
+        currency_btn_btc = self.types.KeyboardButton(self.MENU_BUTTONS['btc'])
+        currency_btn_ltc = self.types.KeyboardButton(self.MENU_BUTTONS['ltc'])
+        currency_btn_exmo = self.types.KeyboardButton(self.MENU_BUTTONS['exmo'])
+        currency_btn_eth = self.types.KeyboardButton(self.MENU_BUTTONS['eth'])
+        currency_btn_bch = self.types.KeyboardButton(self.MENU_BUTTONS['bch'])
+        back_btn = self.types.KeyboardButton(self.MENU_BUTTONS['main_menu'])
 
         markup.row(currency_btn_btc, currency_btn_exmo)
         markup.row(currency_btn_ltc, currency_btn_eth, currency_btn_bch)
@@ -113,14 +120,17 @@ class PersonalMenu:
     MENU_BUTTONS = {
         'replenish': 'Пополнить баланс бота',
         'show_balance': 'Показать баланс',
-        'back': 'Главное меню'
+        'main_menu': 'Главное меню'
     }
 
+    def __init__(self, types):
+        self.types = types
+
     def get_menu_markup(self):
-        markup = types.ReplyKeyboardMarkup()
-        replenish_btn = types.KeyboardButton(self.MENU_BUTTONS['replenish'])
-        blnc_btn = types.KeyboardButton(self.MENU_BUTTONS['show_balance'])
-        back_btn = types.KeyboardButton(self.MENU_BUTTONS['back'])
+        markup = self.types.ReplyKeyboardMarkup()
+        replenish_btn = self.types.KeyboardButton(self.MENU_BUTTONS['replenish'])
+        blnc_btn = self.types.KeyboardButton(self.MENU_BUTTONS['show_balance'])
+        back_btn = self.types.KeyboardButton(self.MENU_BUTTONS['main_menu'])
         markup.row(replenish_btn, blnc_btn)
         markup.row(back_btn)
         return markup
@@ -138,21 +148,24 @@ class UserMenu:
                     'partnership': 'Партнёрка 👥'
                     }
 
+    def __init__(self, types):
+        self.types = types
+
     def get_menu_markup(self):
-        markup = types.ReplyKeyboardMarkup()
-        trade_btn = types.KeyboardButton(self.MENU_BUTTONS['buy'])
-        help_btn = types.KeyboardButton(self.MENU_BUTTONS['help'])
-        personal_menu_btn = types.KeyboardButton(self.MENU_BUTTONS['personal_cabinet'])
-        partnership_btn = types.KeyboardButton(self.MENU_BUTTONS['partnership'])
+        markup = self.types.ReplyKeyboardMarkup()
+        trade_btn = self.types.KeyboardButton(self.MENU_BUTTONS['buy'])
+        help_btn = self.types.KeyboardButton(self.MENU_BUTTONS['help'])
+        personal_menu_btn = self.types.KeyboardButton(self.MENU_BUTTONS['personal_cabinet'])
+        partnership_btn = self.types.KeyboardButton(self.MENU_BUTTONS['partnership'])
 
         markup.row(trade_btn, help_btn)
         markup.row(partnership_btn, personal_menu_btn)
         return markup
 
     def suggestion_menu(self):
-        keyboard = types.InlineKeyboardMarkup(row_width=1)
-        group_btn = types.InlineKeyboardButton(text="Наш групповой чат 💬", url=BotContent.URLS['group'])
-        channel_btn = types.InlineKeyboardButton(text="Наш канал 📢", url=BotContent.URLS['channel'])
+        keyboard = self.types.InlineKeyboardMarkup(row_width=1)
+        group_btn = self.types.InlineKeyboardButton(text="Наш групповой чат 💬", url=BotContent.URLS['group'])
+        channel_btn = self.types.InlineKeyboardButton(text="Наш канал 📢", url=BotContent.URLS['channel'])
         keyboard.add(group_btn, channel_btn)
         return keyboard
 
@@ -164,19 +177,22 @@ class UserMenu:
 
 class OperatorMenu:
     MENU_BUTTONS = {'show_n_a_requests': 'Показать заявки, требующие обработки',
-                    'replenish_user_balance': 'Пополнить баланс пользователя',
+                    'replenish_user': 'Пополнить баланс пользователя',
                     'cut_user_balance': 'Списать с баланса пользователя',
                     'send_message_to_user': 'Отправить сообщение пользователю',
                     'main_menu': 'Пользовательское меню'
                     }
 
+    def __init__(self, types):
+        self.types = types
+
     def get_menu_markup(self):
-        markup = types.ReplyKeyboardMarkup()
-        replenish_user = types.KeyboardButton(self.MENU_BUTTONS['replenish_user'])
-        show_n_a_requests = types.KeyboardButton(self.MENU_BUTTONS['show_n_a_requests'])
-        cut_user_balance = types.KeyboardButton(self.MENU_BUTTONS['cut_user_balance'])
-        h_request = types.KeyboardButton(self.MENU_BUTTONS['h_request'])
-        back_btn = types.KeyboardButton(self.MENU_BUTTONS['back'])
+        markup = self.types.ReplyKeyboardMarkup()
+        replenish_user = self.types.KeyboardButton(self.MENU_BUTTONS['replenish_user'])
+        show_n_a_requests = self.types.KeyboardButton(self.MENU_BUTTONS['show_n_a_requests'])
+        cut_user_balance = self.types.KeyboardButton(self.MENU_BUTTONS['cut_user_balance'])
+        h_request = self.types.KeyboardButton(self.MENU_BUTTONS['h_request'])
+        back_btn = self.types.KeyboardButton(self.MENU_BUTTONS['back'])
         markup.row(replenish_user, show_n_a_requests)
         markup.row(cut_user_balance, h_request)
         markup.row(back_btn)
@@ -196,12 +212,15 @@ class AdminMenu:
                     'd_oper': 'Удалить оператора'
                     }
 
+    def __init__(self, types):
+        self.types = types
+
     def get_menu_markup(self):
-        markup = types.ReplyKeyboardMarkup()
-        r_request = types.KeyboardButton(self.MENU_BUTTONS['a_admin'])
-        n_a_requests = types.KeyboardButton(self.MENU_BUTTONS['d_admin'])
-        d_request = types.KeyboardButton(self.MENU_BUTTONS['a_oper'])
-        h_request = types.KeyboardButton(self.MENU_BUTTONS['d_oper'])
+        markup = self.types.ReplyKeyboardMarkup()
+        r_request = self.types.KeyboardButton(self.MENU_BUTTONS['a_admin'])
+        n_a_requests = self.types.KeyboardButton(self.MENU_BUTTONS['d_admin'])
+        d_request = self.types.KeyboardButton(self.MENU_BUTTONS['a_oper'])
+        h_request = self.types.KeyboardButton(self.MENU_BUTTONS['d_oper'])
         markup.row(r_request, n_a_requests)
         markup.row(d_request, h_request)
         return markup

@@ -74,10 +74,10 @@ class BotContent:
                  'Золотой': 0.005,
                  'Платиновый': 0.01}
     EXAMPLE = {'ExmoRUB': '1000',
-               'Bitcoin': '0.001456 BTC\nили\n1000 RUB',
+               'Bitcoin': '\n0.001456 BTC\nили\n1000 RUB',
                'Ethereum': '0.001432',
                'Bitcoin Cash': '0.001687',
-               'LiteCoin': '0.00987 LTC\nили\n1000 RUB'}
+               'LiteCoin': '\n0.00987 LTC\nили\n1000 RUB'}
 
     SBER_REQUISITES = "sbersbersbersbersbersber"
     YANDEX_REQUISITES = "yayayayayayayayayayaya"
@@ -99,12 +99,23 @@ class BotContent:
         'pay_sber': SBER_REQUISITES,
         'pay_yandex': YANDEX_REQUISITES,
         'pay_advcash': ADVCASH_REQUISITES,
+        'pay_sber_replenish': SBER_REQUISITES,
+        'pay_yandex_replenish': YANDEX_REQUISITES,
+        'pay_advcash_replenish': ADVCASH_REQUISITES,
     }
 
     BITCOIN_WALLET_EXAMPLE = '3GncF7muEw1oayeuH33rxahdmtHSWoj4tw'
     LITCOIN_WALLET_EXAMPLE = 'MDwCMAofN9K4U8e9EPMzs57Asams2AFBen'
     ETHEREUM_WALLET_EXAMPLE = '0x2Fe62eae2fB629808C94E55AF69fB373FD959980'
     BITCOINCASH_WALLET_EXAMPLE = '3GncF7muEw1oayeuH33rxahdmtHSWoj4tw'
+
+    ISO_CODE = {
+        'Bitcoin': 'или в BTC',
+        'LiteCoin': 'или в LTC',
+        'Bitcoin Cash': '',
+        'Ethereum': '',
+        'ExmoRUB': ''
+    }
 
     MESSAGES = {
         'channel_suggest': "❓ Ещё не подписаны на наш канал и не в групповом чате?\n"
@@ -117,7 +128,7 @@ class BotContent:
         'current_balance': "Вы {} пользователь!\nНа данный момент ваш баланс: {} руб.\n",
         'menu_arrow': "⬇️Меню",
         'personal_cabinet': 'Личный кабинет',
-        'start_trade_rq': '💰Введи нужную сумму в RUB или в {}\n'
+        'start_trade_rq': '💰Введи нужную сумму в RUB {}\n'
                           'Например: {}',
         'where_return': 'Выберите куда возвращать деньги',
         'return_failure': 'Не удалось отправить заявку.\nНа вашем счёте недостаточно средств.\n'
@@ -133,7 +144,7 @@ class BotContent:
         'unacceptable_value': 'Недопустимое значение, попробуйте снова',
         'choose_payment_method': 'Выберите способ оплаты!',
         'promotion_message': 'Это ваша {} заявка, она будет беспроцентной!',
-        'confirm_user_wallet': 'После оплаты, криптоваллюта будет отправлена на этот кошелёк:\n{}',
+        'confirm_user_wallet': 'Ваш номер кошелька:\n{}',
         'unacceptable_wallet': '🙅‍♂️ Такого кошелька не существует! Попробуйте ещё раз.',
         'choose_commission': 'Выберите желаемую комиссию',
         'message_from_operator_notification': 'Вам написал сотрудник тех. поддержки: {}',
@@ -182,7 +193,7 @@ class BotContent:
         'pay_balance': 'Деньги спишутся c вашего баланса в боте: {}\n',
         'balance_is_too_low': 'На вашем счёте недостаточно средств.\n'
                               'Ваш баланс: {} руб.\n'
-                              'Выберите другой способ оплаты:',
+                              'Пополните баланс:',
 
 
 
@@ -234,10 +245,7 @@ class BotContent:
     def get_status_discount(self, user):
         return self.DISCOUNTS[user.status]
 
-    def get_user_price(self, curr_price, user, trade_value, key):
-        user_price = float(curr_price) * float(trade_value)
-        discount = self.get_status_discount(user)
-        promotion = None
+    def get_percent(self, user, user_price, key):
         if (user.quantity_of_trades + 1) % 10 == 0 and 1 < user_price < 3000:
             promotion = True
             percent = 1
@@ -261,11 +269,54 @@ class BotContent:
                 percent = self.PERCENTS['above_10k'][key]
             else:
                 return 'price is too low'
+        return percent
+
+    def analyse_trade_value(self, user, user_price, curr_price, key, trade_value):
+        if trade_value.type.lower == 'rub':
+            user_price = trade_value
+
+        discount = self.get_status_discount(user)
+        promotion = None
+        percent = self.get_percent(user, user_price, key)
         user_curr = float(curr_price) + float(curr_price) * percent
-        user_price = user_curr * float(trade_value)
+        if trade_value.type.lower != 'rub':
+            user_price = user_curr * float(trade_value)
+        else:
+            trade_value.value = user_price / user_curr
+        print(user_price, user_curr, trade_value.type, str(trade_value))
+
+        if key == "ExmoRUB":
+            user_price -= 5
+        return trade_value, round(user_price, 2) - user_price * discount, round(user_curr, 4), promotion
+
+    def analyse_trade_value_rub(self, user, user_price, curr_price, key, trade_value):
+        discount = self.get_status_discount(user)
+        promotion = None
+        percent = self.get_percent(user, user_price, key)
+        user_curr = float(curr_price) + float(curr_price) * percent - float(curr_price) * discount
+        trade_value.value = user_price / user_curr
+        print(user_price, user_curr, trade_value.type, str(trade_value), 'RUB'*10)
+
         if key == "EXMOCoin":
             user_price -= 5
-        return round(user_price, 2) - user_price * discount, user_curr, promotion
+        return trade_value, round(user_price, 2), round(user_curr, 4), promotion
+
+    def get_user_price(self, curr_price, user, trade_value, key):
+        if trade_value.type.lower() == 'rub':
+            user_price = trade_value.value
+            return self.analyse_trade_value_rub(user=user,
+                                                user_price=user_price,
+                                                curr_price=curr_price,
+                                                key=key,
+                                                trade_value=trade_value)
+
+        else:
+            user_price = float(curr_price) * float(trade_value)
+            return self.analyse_trade_value(user=user,
+                                            user_price=user_price,
+                                            curr_price=curr_price,
+                                            key=key,
+                                            trade_value=trade_value)
 
     def get_admins_list(self) -> list:
         admins = []

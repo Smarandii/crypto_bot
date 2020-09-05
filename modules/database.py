@@ -48,7 +48,10 @@ class DataBase:
                         and rq_type in request.type \
                         and request.status != "user_confirmed" \
                         and request.status != 'T: user_payed':
+                    print(request, "FOUND")
                     return request
+            else:
+                return None
         else:
             for request in requests:
                 if request.telegram_id == telegram_id and rq_type in request.type:
@@ -157,7 +160,7 @@ class DataBase:
             result = cursor.fetchall()
         return result
 
-    def add_new_user_to_db(self, user_id, follow_status, invited_by):
+    def add_new_user_to_db(self, user_id, follow_status=0, invited_by=0):
         user = User(telegram_id=user_id, is_follower=follow_status, invited_by=invited_by)
         telegram_ids_from_db = self.select_column_from_db('telegram_id', 'users')
         if telegram_ids_from_db is None or self.get_user_by_telegram_id(user.telegram_id) is None:
