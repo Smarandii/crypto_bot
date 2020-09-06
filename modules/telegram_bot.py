@@ -36,6 +36,11 @@ class Bot:
             'cancel_return_anyway': self.user.return_request,
             'cancel_replenish_anyway': self.user.replenish_request
         }
+        self.type_switcher = {
+            'cancel_trade_anyway': 'trade',
+            'cancel_return_anyway': 'return',
+            'cancel_replenish_anyway': 'replenish'
+        }
 
     def get_partnership_text(self):
         amount_invited_by_user = self.database.get_number_of_invitations(self.user.telegram_id)
@@ -53,12 +58,9 @@ class Bot:
 
     def replenish_client_balance(self, client_id, amount):
         user = self.database.get_user_by_telegram_id(client_id)
-        if (float(user.balance) - float(amount)) > 0:
-            user.balance = float(user.balance) - float(amount)
-            self.database.update_user_in_db(user)
-            return True
-        else:
-            return False
+        user.balance = float(user.balance) + float(amount)
+        self.database.update_user_in_db(user)
+        return True
 
     def take_money_from_client_balance(self, client_id, amount: (int or float), ):
         user = self.database.get_user_by_telegram_id(client_id)
@@ -78,7 +80,7 @@ class Bot:
         self.database.update_user_in_db(self.user)
 
     def return_is_possible(self, return_value):
-        return float(self.user.balance) > return_value and self.return_value_is_acceptable(return_value)
+        return float(self.user.balance) >= return_value and self.return_value_is_acceptable(return_value)
 
     def get_balance_available_for_return(self):
         return self.user.balance * self.content.RETURN_PERCENT
@@ -319,6 +321,7 @@ class Bot:
     def send_return_possible_message(self, return_value):
         self.user.return_request.comment = f"Вывод {return_value}"
         self.database.update_request_in_db(self.user.return_request)
+        print()
         choose_return_keyboard = self.buttons.keyboard_maker(2, ['Сбербанк', 'QIWI'],
                                                              [f'return_sber {self.user.return_request.db_id}',
                                                               f'return_qiwi {self.user.return_request.db_id}'])
@@ -326,30 +329,30 @@ class Bot:
                                 reply_markup=choose_return_keyboard)
 
     def confirm_return_requisites(self):
-        user_requisites = self.message_parser.user_message
+        user_requisites = self.message_parser.user_message.text
         self.user.return_request.wallet = user_requisites
         self.database.update_request_in_db(self.user.return_request)
         self.tgbot.send_message(self.user.telegram_id,
-                                text=self.content.MESSAGES['confirm_requisites'].format(user_requisites),
+                                text=self.content.MESSAGES['confirm_return_requisites'].format(user_requisites),
                                 reply_markup=self.buttons.REQUISITES_CONFIRM_KEYBOARD)
 
     def return_request_processing(self):
-        if self.user.return_request.type == "R: wait for return value":
+        if self.user.return_request.status == "R: wait for return value":
             return_value = self.message_parser.get_value_from_message()
             if self.return_is_possible(return_value):
                 self.send_return_possible_message(return_value)
             else:
                 self.send_return_impossible_message()
-        if self.user.return_request == "R: wait for return requisites":
+        if self.user.return_request.status == "R: wait for return requisites":
             self.confirm_return_requisites()
         self.database.update_request_in_db(self.user.return_request)
 
     def send_confirm_answer_message(self):
-        answer = self.message_parser.user_message
+        answer = self.message_parser.user_message.text
         send_msg_to_user = self.buttons.keyboard_maker(2,
                                                        ['Да',
                                                         'Нет, ввести заново'],
-                                                       [f'sendanswer {self.user.service_request.telegram_id} {answer}',
+                                                       [f'sendanswer:{self.user.service_request.telegram_id}:{answer}',
                                                         f'answer']
                                                        )
         self.tgbot.send_message(self.user.telegram_id,
@@ -409,6 +412,7 @@ class Bot:
             self.user.replenish_request.type = f'replenish {replenish_value}'
             self.user.replenish_request.status = 'B: wait_for_purchase'
             self.user.replenish_request.comment = f"Пополнение баланса на сумму: {replenish_value} ₽"
+            self.database.update_user_in_db(self.user)
             self.tgbot.send_message(self.user.telegram_id,
                                     text=self.content.MESSAGES['confirm_user_replenish'].format(replenish_value),
                                     reply_markup=self.buttons.REPLENISH_CONFIRM_KEYBOARD)
@@ -505,10 +509,11 @@ class Bot:
         self.tgbot.send_message(client_id, text=message)
 
     def send_answer_from_operator(self):
-        call_data, client_id, answer = self.call_parser.data.split(' ')
+        call_data, client_id, answer = self.call_parser.data.split(':')
         client_request = self.database.get_request_by_telegram_id(client_id, rq_type='help_request')
         self.tgbot.send_message(client_id,
-                                self.content.MESSAGES['question_answered_notification'].format(answer))
+                                self.content.MESSAGES['question_answered_notification'].format(self.user.help_request.comment,
+                                                                                               answer))
         self.tgbot.send_message(self.user.telegram_id,
                                 self.content.MESSAGES['message_sent_notification'])
         self.database.delete_request_from_db(client_request.db_id)
@@ -674,6 +679,8 @@ class Bot:
             self.send_deloper()
         elif self.admin_menu.MENU_BUTTONS['deladmin'] in self.message_parser.user_message.text:
             self.send_deladmin()
+        elif self.admin_menu.MENU_BUTTONS['save_database'] in self.message_parser.user_message.text:
+            self.save_database()
 
     def request_processing(self):
         print(self.message_parser.user_message.text, 'REQUEST PROCESSING +++++++++++++++++++++++++++++++++++++++++++++')
@@ -737,20 +744,23 @@ class Bot:
 
     def send_return_sber(self):
         self.user.return_request.status = "R: wait for return requisites"
-        self.user.return_request.comment = "Сбербанк"
+        self.user.return_request.comment = self.user.return_request.comment + " Сбербанк"
         self.tgbot.send_message(text=self.content.MESSAGES['input_requisites_next'],
                                 chat_id=self.user.telegram_id)
+        self.database.update_request_in_db(self.user.return_request)
 
     def send_return_qiwi(self):
         self.user.return_request.status = "R: wait for return requisites"
         self.user.return_request.comment = self.user.return_request.comment + " QIWI"
         self.tgbot.send_message(text=self.content.MESSAGES['input_requisites_next'],
                                 chat_id=self.user.telegram_id)
+        self.database.update_request_in_db(self.user.return_request)
 
     def send_edit_requisites(self):
         self.user.return_request.status = "R: wait for return requisites"
         self.tgbot.send_message(self.user.telegram_id,
                                 text=self.content.MESSAGES['input_requisites_next'])
+        self.database.update_request_in_db(self.user.return_request)
 
     def send_requisites_correct(self):
         return_amount = get_return_amount(self.user.return_request)
@@ -759,6 +769,8 @@ class Bot:
         self.tgbot.edit_message_text(text=self.content.MESSAGES['wait_after_return'],
                                      chat_id=self.user.telegram_id, message_id=self.call_parser.message.message_id)
         self.send_request_to_operators_with_comment('Пользователь ждёт зачисления.')
+        self.database.update_request_in_db(self.user.return_request)
+        self.database.update_user_in_db(self.user)
 
     def send_return_money(self):
         if self.user.return_request is not None:
@@ -767,7 +779,7 @@ class Bot:
                                     reply_markup=self.buttons.SHOW_OR_CANCEL_RETURN_ORDER)
         else:
             self.add_new_return_request()
-            value_available_for_return = self.user.get_balance_available_for_return()
+            value_available_for_return = self.get_balance_available_for_return()
             self.tgbot.edit_message_text(text=self.content.MESSAGES['return_available'].
                                          format(value_available_for_return,
                                                 self.content.MIN_VALUE_FOR_RETURN),
@@ -783,6 +795,7 @@ class Bot:
             message_id=self.call_parser.message.message_id,
             reply_markup=self.buttons.SHOW_OR_CANCEL_RETURN_ORDER)
         self.send_request_to_operators_with_comment('Заявка оплачена с баланса бота.')
+        self.database.update_request_in_db(self.user.return_request)
 
     def send_show_help_request(self):
 
@@ -795,6 +808,8 @@ class Bot:
             self.send_request_not_found()
 
     def send_show_trade_request(self):
+        if self.user.trade_request is None:
+            self.user.trade_request = self.database.get_request_by_telegram_id(self.user.telegram_id, status='all')
         text = get_request_text(self.user.trade_request)
         if text is not None:
             self.tgbot.send_message(self.user.telegram_id,
@@ -804,6 +819,8 @@ class Bot:
             self.send_request_not_found()
 
     def send_show_replenish_request(self):
+        if self.user.replenish_request is None:
+            self.user.replenish_request = self.database.get_request_by_telegram_id(self.user.telegram_id, status='all')
         text = get_request_text(self.user.replenish_request)
         if text is not None:
             self.tgbot.send_message(self.user.telegram_id,
@@ -813,6 +830,8 @@ class Bot:
             self.send_request_not_found()
 
     def send_show_return_request(self):
+        if self.user.return_request is None:
+            self.user.return_request = self.database.get_request_by_telegram_id(self.user.telegram_id, status='all')
         text = get_request_text(self.user.return_request)
         if text is not None:
             self.tgbot.send_message_text(
@@ -827,8 +846,12 @@ class Bot:
         self.tgbot.send_message(self.user.telegram_id, self.content.MESSAGES['request_cancelled'])
 
     def send_cancel_trade_request(self):
+        if self.user.trade_request is None:
+            self.user.trade_request = self.database.get_request_by_telegram_id(self.user.telegram_id, status='all',
+                                                                               rq_type='trade')
         if self.user.trade_request is not None:
-            if self.user.trade_request.type == "user_confirmed" or self.user.trade_request.type == 'user_payed':
+            print(self.user.trade_request)
+            if self.user.trade_request.status == "user_confirmed" or self.user.trade_request.status == 'user_payed':
                 self.tgbot.edit_message_text(
                     message_id=self.call_parser.message.message_id,
                     chat_id=self.user.telegram_id,
@@ -851,6 +874,9 @@ class Bot:
             self.send_request_not_found()
 
     def send_cancel_return_request(self):
+        if self.user.return_request is None:
+            self.user.return_request = self.database.get_request_by_telegram_id(self.user.telegram_id, status='all',
+                                                                                rq_type='return')
         if self.user.return_request is not None:
             if self.user.return_request.status == 'user_payed':
                 self.tgbot.edit_message_text(
@@ -859,20 +885,23 @@ class Bot:
                     text=self.content.MESSAGES['return_cancel_warning'],
                     reply_markup=self.buttons.REPLENISH_INSTEAD_RETURN)
             else:
-                self.database.delete_request_from_db(request_id=self.user.trade_request.db_id)
+                self.database.delete_request_from_db(request_id=self.user.return_request.db_id)
                 self.send_request_cancelled()
                 self.send_main_menu()
         else:
             self.send_request_not_found()
 
     def send_cancel_replenish_request(self):
+        if self.user.replenish_request is None:
+            self.user.replenish_request = self.database.get_request_by_telegram_id(self.user.telegram_id, status='all',
+                                                                                   rq_type='replenish')
         if self.user.replenish_request is not None:
             if self.user.replenish_request.status == 'user_confirmed':
                 self.tgbot.edit_message_text(
                     message_id=self.call_parser.message.message_id,
                     chat_id=self.user.telegram_id,
                     text=self.content.MESSAGES['replenish_cancel_warning'],
-                    reply_markup=self.buttons.REPLENISH_INSTEAD_REPLENISH)
+                    reply_markup=self.buttons.CANCEL_REPLENISH_INSTEAD_REPLENISH)
             else:
                 self.database.delete_request_from_db(request_id=self.user.trade_request.db_id)
                 self.send_request_cancelled()
@@ -883,7 +912,11 @@ class Bot:
     def send_cancel_request_anyway(self):
         request = self.switcher[self.call_parser.data]
         if request is not None:
-            self.database.delete_request_from_db(request_id=request)
+            print(self.type_switcher[self.call_parser.data])
+            request = self.database.get_request_by_telegram_id(self.user.telegram_id, status='any',
+                                                               rq_type=self.type_switcher[self.call_parser.data])
+        if request is not None:
+            self.database.delete_request_from_db(request_id=request.db_id)
             self.send_request_cancelled()
             self.send_main_menu()
         else:
@@ -898,11 +931,13 @@ class Bot:
                                      chat_id=self.user.telegram_id,
                                      message_id=self.call_parser.message.message_id,
                                      reply_markup=self.buttons.PAYMENT_METHODS)
+        self.database.update_request_in_db(self.user.trade_request)
 
     def send_edit_wallet(self):
         self.user.trade_request.status = 'T: waiting_for_usr_wallet'
         self.tgbot.send_message(self.user.telegram_id,
                                 text=self.content.MESSAGES['edit_wallet'])
+        self.database.update_request_in_db(self.user.trade_request)
 
     def send_wallet_correct(self):
         self.user.trade_request.status = "T: waiting for priority"
@@ -910,6 +945,7 @@ class Bot:
                                      chat_id=self.user.telegram_id,
                                      message_id=self.call_parser.message.message_id,
                                      reply_markup=self.buttons.REQUEST_PRIORITIES)
+        self.database.update_request_in_db(self.user.trade_request)
 
     def send_replenish_confirmed(self):
         self.user.replenish_request.status = 'B: waiting_for_purchase'
@@ -917,8 +953,11 @@ class Bot:
                                      chat_id=self.user.telegram_id,
                                      message_id=self.call_parser.message.message_id,
                                      reply_markup=self.buttons.REPLENISH_METHODS)
+        self.database.update_request_in_db(self.user.replenish_request)
 
     def send_replenish_balance(self):
+        if self.user.trade_request is not None and self.user.trade_request.type != 'user_confirmed':
+            self.database.delete_request_from_db(self.user.trade_request.db_id)
         if self.user.replenish_request is not None and self.user.replenish_request.type != 'user_confirmed':
             self.database.delete_request_from_db(self.user.replenish_request.db_id)
             self.add_new_replenish_request()
@@ -937,25 +976,39 @@ class Bot:
         self.tgbot.send_message(text=self.content.MESSAGES['input_replenish_amount'],
                                 chat_id=self.user.telegram_id)
 
+    def get_payment_method_from_trade_request(self, type):
+        return self.content.PAYMENT_METHODS[type.split()[4]]
+
     def send_replenish_instead(self):
+        if self.user.trade_request is None:
+            self.user.trade_request = self.database.get_request_by_telegram_id(self.user.telegram_id, status='all',
+                                                                               rq_type='trade')
+        print(self.user.trade_request, 'TRADE REQUEST BEFORE DELETING')
         comment, user_price = self.user.trade_request.comment.split(': ')
-        user_price = user_price.split(" Приоритет ")[0]
+        user_price = user_price.split(" Комиссия ")[0]
         replenish_value = user_price
-        self.user.trade_request.comment = f"Пополнение баланса на сумму: {replenish_value}"
-        self.user.trade_request.status = 'user_confirmed'
-        self.user.trade_request.type = f'replenish {replenish_value}'
+        self.database.delete_request_from_db(self.user.trade_request.db_id)
+        self.add_new_replenish_request()
+        self.user.replenish_request = self.database.get_request_by_telegram_id(self.user.telegram_id, status='all',
+                                                                               rq_type='replenish')
+        self.user.replenish_request.comment = self.get_payment_method_from_trade_request(self.user.trade_request.type) + \
+                                              f"Пополнение баланса на сумму: {replenish_value}"
+        self.user.replenish_request.status = "B: waiting_for_purchase"
+        self.user.replenish_request.type = f'replenish {replenish_value}'
+        print(self.user.replenish_request, 'REPLENISH REQUEST BEFORE UPDATING')
+        self.database.update_request_in_db(self.user.replenish_request)
         self.tgbot.edit_message_text(
             message_id=self.call_parser.message.message_id,
             chat_id=self.user.telegram_id,
             text=self.content.MESSAGES['replenish_confirm'].format(replenish_value),
-            reply_markup=self.buttons.PURCHASE_CONFIRM_KEYBOARD)
+            reply_markup=self.buttons.PURCHASE_CONFIRM_REPLENISH_KEYBOARD)
 
     def get_request_number(self, request):
         return self.content.BASE_REQUEST_NUM + request.db_id
 
     def send_user_confirmed_blnc(self):
         comment, user_price = self.user.trade_request.comment.split(': ')
-        user_price = user_price.split(" Приоритет ")[0]
+        user_price = user_price.split(" Комиссия ")[0]
         self.user.balance = self.user.balance - float(user_price)
         self.database.update_user_in_db(self.user)
         self.user.trade_request.status = 'user_payed'
@@ -964,6 +1017,7 @@ class Bot:
             chat_id=self.user.telegram_id,
             message_id=self.call_parser.message.message_id,
             reply_markup=self.buttons.SHOW_OR_CANCEL_TRADE_ORDER)
+        self.database.update_request_in_db(self.user.trade_request)
         text = get_request_text(self.user.trade_request) + '\nЗаявка оплачена с баланса бота.'
         self.send_request_to_operators(text, self.user.trade_request)
 
@@ -978,10 +1032,14 @@ class Bot:
             chat_id=self.user.telegram_id,
             message_id=self.call_parser.message.message_id,
             reply_markup=self.buttons.SHOW_OR_CANCEL_TRADE_ORDER)
+        self.database.update_request_in_db(self.user.replenish_request)
         text = get_request_text(self.user.replenish_request) + '\nЗаявка оплачена с баланса бота.'
         self.send_request_to_operators(text, self.user.replenish_request)
 
     def send_user_confirmed_payment(self):
+        if self.user.trade_request is None:
+            self.user.trade_request = self.database.get_request_by_telegram_id(self.user.telegram_id, status='all',
+                                                                               rq_type='trade')
         self.user.trade_request.status = 'user_confirmed'
         self.database.update_request_in_db(self.user.trade_request)
         self.tgbot.edit_message_text(
@@ -990,16 +1048,21 @@ class Bot:
             message_id=self.call_parser.message.message_id,
             reply_markup=self.buttons.SHOW_OR_CANCEL_TRADE_ORDER)
         text = get_request_text(self.user.trade_request)
+        self.database.update_request_in_db(self.user.trade_request)
         self.send_request_to_operators(text, self.user.trade_request)
 
     def send_user_confirmed_payment_replenish(self):
+        if self.user.replenish_request is None:
+            self.user.replenish_request = self.database.get_request_by_telegram_id(self.user.telegram_id, status='all',
+                                                                                   rq_type='replenish')
         self.user.replenish_request.status = 'user_confirmed'
         self.database.update_request_in_db(self.user.replenish_request)
         self.tgbot.edit_message_text(
             text=self.content.MESSAGES['request_processing'].format(self.get_request_number(self.user.replenish_request)),
             chat_id=self.user.telegram_id,
             message_id=self.call_parser.message.message_id,
-            reply_markup=self.buttons.SHOW_OR_CANCEL_TRADE_ORDER)
+            reply_markup=self.buttons.SHOW_OR_CANCEL_REPLENISH_ORDER)
+        self.database.update_request_in_db(self.user.replenish_request)
         text = get_request_text(self.user.replenish_request)
         self.send_request_to_operators(text, self.user.replenish_request)
 
@@ -1012,10 +1075,12 @@ class Bot:
             reply_markup=self.buttons.PURCHASE_CONFIRM_KEYBOARD,
             chat_id=self.user.telegram_id,
             message_id=self.call_parser.message.message_id)
+        self.database.update_request_in_db(self.user.trade_request)
 
     def send_pay_replenish(self):
         self.user.replenish_request.type = self.user.replenish_request.type + " " + self.call_parser.data
         print(self.user.replenish_request, '==')
+        self.user.replenish_request.comment = self.content.REPLENISH_METHODS[self.call_parser.data] + self.user.replenish_request.comment
         replenish_information = self.user.replenish_request.comment
         self.tgbot.edit_message_text(
             text=self.content.MESSAGES['requisites_for_payment'].format(self.content.REQUISITES[self.call_parser.data],
@@ -1023,11 +1088,13 @@ class Bot:
             reply_markup=self.buttons.PURCHASE_CONFIRM_REPLENISH_KEYBOARD,
             chat_id=self.user.telegram_id,
             message_id=self.call_parser.message.message_id)
+        self.database.update_request_in_db(self.user.replenish_request)
 
     def send_pay_balance(self):
         comment, user_price = self.user.trade_request.comment.split(': ')
-        user_price = user_price.split(" Приоритет ")[0]
+        user_price = user_price.split(" Комиссия ")[0]
         self.user.trade_request.type = self.user.trade_request.type + " " + self.call_parser.data
+        self.database.update_request_in_db(self.user.trade_request)
         if self.user.balance > float(user_price):
             self.tgbot.edit_message_text(
                 text=self.content.MESSAGES['pay_balance'].format(self.user.balance),
@@ -1046,6 +1113,7 @@ class Bot:
         comment, user_price = self.user.replenish_request.comment.split(': ')
         user_price = user_price.split(" Приоритет ")[0]
         self.user.replenish_request.type = self.user.replenish_request.type + " " + self.call_parser.data
+        self.database.update_request_in_db(self.user.replenish_request)
         if self.user.balance > float(user_price):
             self.tgbot.edit_message_text(
                 text=self.content.MESSAGES['pay_balance'].format(self.user.balance),
@@ -1144,3 +1212,6 @@ class Bot:
             self.send_pay_replenish()
         elif self.call_parser.data == 'pay_balance_replenish':
             self.send_pay_balance_replenish()
+
+    def save_database(self):
+        self.tgbot.send_document(self.user.telegram_id, open(self.database.db_file, 'rb'))

@@ -47,14 +47,14 @@ class DataBase:
                 if request.telegram_id == telegram_id \
                         and rq_type in request.type \
                         and request.status != "user_confirmed" \
-                        and request.status != 'T: user_payed':
-                    print(request, "FOUND")
+                        and request.status != 'user_payed':
                     return request
             else:
                 return None
         else:
             for request in requests:
                 if request.telegram_id == telegram_id and rq_type in request.type:
+
                     return request
         return None
 
@@ -94,7 +94,7 @@ class DataBase:
         return self.get_user_by_telegram_id(telegram_id) is not None
 
     def get_status_message(self, call):
-        call_data, request_id, client_id, status = call.data.split(" ")
+        call_data, request_id, client_id, status = call.split(" ")
         if status in ["no_payment", 'close_request']:
             self.delete_request_from_db(request_id)
         status_msgs = {'payment_s': 'Платёж подтверждён!',
@@ -110,7 +110,8 @@ class DataBase:
         cursor = self.c.cursor()
         cursor.execute(f'UPDATE users SET id = ?, telegram_id = ?, balance = ?, status = ?, '
                        f'is_follower = ?, invited_by = ?, '
-                       f'q_of_trades = ?, earned_from_partnership = ? WHERE telegram_id = {user.telegram_id}', user)
+                       f'q_of_trades = ?, earned_from_partnership = ? WHERE telegram_id = {user.telegram_id}',
+                       user.update_database_list())
         self.c.commit()
         print(self.get_user_by_telegram_id(user.telegram_id), 'usr updated')
 
@@ -224,5 +225,7 @@ class DataBase:
 
 if __name__ == '__main__':
     database = DataBase()
+    database.print_all_users()
     print('_' * 100)
     database.print_all_requests()
+    print('_' * 100)

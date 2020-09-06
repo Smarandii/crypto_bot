@@ -63,6 +63,10 @@ class User:
         self.help_request = None
         self.trade_request = None
 
+    def update_database_list(self) -> list:
+        return [self.db_id, str(self.telegram_id), self.balance, self.status, self.is_follower,
+                self.invited_by, self.quantity_of_trades, self.earned_from_partnership]
+
     def database_list(self) -> list:
         return [self.telegram_id, self.balance, self.status, self.is_follower,
                 self.invited_by, self.quantity_of_trades, self.earned_from_partnership]

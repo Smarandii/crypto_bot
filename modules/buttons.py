@@ -16,13 +16,18 @@ class Buttons:
                                                               '❌ Просто отменить'],
                                                           ['replenish_instead', 'user_confirmed_payment',
                                                            'cancel_replenish_anyway'])
+        self.CANCEL_REPLENISH_INSTEAD_REPLENISH = self.keyboard_maker(2, [
+                                                                   '🕐 Не удалять заявку',
+                                                                   '❌ Просто отменить'],
+                                                               ['user_confirmed_payment',
+                                                                'cancel_replenish_anyway'])
         self.REPLENISH_INSTEAD_RETURN = self.keyboard_maker(3, ['🚫 Отменить завявку и пополнить баланс', '🕐 Не удалять заявку',
                                                       '❌ Просто отменить'],
-                                                  ['replenish_instead', 'user_confirmed_payment',
+                                                  ['replenish_instead', 'user_confirmed_payment_replenish',
                                                    'cancel_return_anyway'])
         self.REPLENISH_INSTEAD_TRADE = self.keyboard_maker(3, ['🚫 Отменить завявку и пополнить баланс', '🕐 Не удалять заявку',
                                                      '❌ Просто отменить'],
-                                                 ['replenish_instead', 'user_confirmed_payment', 'cancel_trade_anyway'])
+                                                 ['replenish_instead', 'user_confirmed_payment_replenish', 'cancel_trade_anyway'])
         self.REPLENISH_BALANCE = self.one_button_keyboard(text="Пополнить баланс", callback_line='replenish_balance')
         self.REPLENISH_BALANCE_FROM_NEW_MSG = self.one_button_keyboard(text="Пополнить баланс",
                                                              callback_line='replenish_balance_nwmsg')
@@ -180,7 +185,7 @@ class OperatorMenu:
                     'replenish_user': 'Пополнить баланс пользователя',
                     'cut_user_balance': 'Списать с баланса пользователя',
                     'send_message_to_user': 'Отправить сообщение пользователю',
-                    'main_menu': 'Пользовательское меню'
+                    'main_menu': 'Пользовательское меню',
                     }
 
     def __init__(self, types):
@@ -191,10 +196,10 @@ class OperatorMenu:
         replenish_user = self.types.KeyboardButton(self.MENU_BUTTONS['replenish_user'])
         show_n_a_requests = self.types.KeyboardButton(self.MENU_BUTTONS['show_n_a_requests'])
         cut_user_balance = self.types.KeyboardButton(self.MENU_BUTTONS['cut_user_balance'])
-        h_request = self.types.KeyboardButton(self.MENU_BUTTONS['h_request'])
-        back_btn = self.types.KeyboardButton(self.MENU_BUTTONS['back'])
+        message_to_user = self.types.KeyboardButton(self.MENU_BUTTONS['send_message_to_user'])
+        back_btn = self.types.KeyboardButton(self.MENU_BUTTONS['main_menu'])
         markup.row(replenish_user, show_n_a_requests)
-        markup.row(cut_user_balance, h_request)
+        markup.row(cut_user_balance, message_to_user)
         markup.row(back_btn)
         return markup
 
@@ -206,10 +211,11 @@ class OperatorMenu:
 
 class AdminMenu:
     MENU_BUTTONS = {
-                    'a_admin': "Добавить админа",
-                    'd_admin': "Удалить админа",
-                    'a_oper': 'Добавить оператора',
-                    'd_oper': 'Удалить оператора'
+                    'addadmin': "Добавить админа",
+                    'deladmin': "Удалить админа",
+                    'addoper': 'Добавить оператора',
+                    'deloper': 'Удалить оператора',
+                    'save_database': 'Сохранить базу данных'
                     }
 
     def __init__(self, types):
@@ -217,12 +223,14 @@ class AdminMenu:
 
     def get_menu_markup(self):
         markup = self.types.ReplyKeyboardMarkup()
-        r_request = self.types.KeyboardButton(self.MENU_BUTTONS['a_admin'])
-        n_a_requests = self.types.KeyboardButton(self.MENU_BUTTONS['d_admin'])
-        d_request = self.types.KeyboardButton(self.MENU_BUTTONS['a_oper'])
-        h_request = self.types.KeyboardButton(self.MENU_BUTTONS['d_oper'])
+        r_request = self.types.KeyboardButton(self.MENU_BUTTONS['addadmin'])
+        n_a_requests = self.types.KeyboardButton(self.MENU_BUTTONS['deladmin'])
+        d_request = self.types.KeyboardButton(self.MENU_BUTTONS['addoper'])
+        h_request = self.types.KeyboardButton(self.MENU_BUTTONS['deloper'])
+        save_database = self.types.KeyboardButton(self.MENU_BUTTONS['save_database'])
         markup.row(r_request, n_a_requests)
         markup.row(d_request, h_request)
+        markup.row(save_database)
         return markup
 
     def sent_by_menu(self, text):

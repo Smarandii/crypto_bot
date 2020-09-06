@@ -118,7 +118,7 @@ def show_return_request(request):
     # type text, when_created text, comment text, wallet text)
     statuses = {'R: wait for return value': 'бот ждёт от вас сумму для вывода',
                 "R: wait for return requisites": 'бот ждёт от вас ваши реквизиты',
-                'user_payed': 'бот отправляет вам валюту',
+                'user_payed': 'бот обрабатывает заявку',
                 "R: waiting_for_priority": 'бот ждёт, пока вы выберите приоритет заявки'}
     text = f'🖊 Уникальный № - {1000 + request.db_id}\n' \
            f'🛒 Тип - {request.comment}\n' \
@@ -134,6 +134,7 @@ def get_request_text(request):
     # TODO переделать
     text = 'None'
     if request is not None:
+        print(request)
         if "trade" in request.type:
             text = show_request(request)
         elif 'replenish' in request.type:
@@ -146,8 +147,9 @@ def get_request_text(request):
 
 
 def get_return_amount(request):
-    return_amount = request.comment.split(" ")[0]
-    return int(return_amount)
+    print(request.comment)
+    return_amount = request.comment.split(" ")[1]
+    return float(return_amount)
 
 
 def show_request(request):
