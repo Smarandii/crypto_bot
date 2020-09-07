@@ -3,7 +3,7 @@ from modules.currency import CurrencyBot
 from modules.database import DataBase
 from modules.telegram_bot import Bot
 
-TOKEN = '1111584809:AAH4eNPU1OE_9XAo_N8-MZeqCRhpIl3Z8CU'
+TOKEN = 'telegram_bot_token'
     
 tgbot = TeleBot(TOKEN)
 currency_bot = CurrencyBot()
